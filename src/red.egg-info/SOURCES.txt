@@ -1,0 +1,17 @@
+pyproject.toml
+docs/README.md
+src/red/batch.py
+src/red/compute.py
+src/red/content.py
+src/red/docker.py
+src/red/ecr.py
+src/red/iam.py
+src/red/main.py
+src/red/schedule.py
+src/red/utility.py
+src/red.egg-info/PKG-INFO
+src/red.egg-info/SOURCES.txt
+src/red.egg-info/dependency_links.txt
+src/red.egg-info/entry_points.txt
+src/red.egg-info/requires.txt
+src/red.egg-info/top_level.txt
