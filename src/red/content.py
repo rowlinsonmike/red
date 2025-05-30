@@ -44,6 +44,13 @@ if __name__ == "__main__":
 """
 
 ENV_FILE = {"Type": "Lambda", "Timeout": 300, "MemorySize": 128, "Arch": "x86_64"}
+CODE_ENV_FILE = {
+    "Type": "LambdaCode",
+    "Timeout": 300,
+    "MemorySize": 128,
+    "Handler": "main.handler",
+    "Runtime": "python3.13",
+}
 
 PYTHON_LAMBDA_DOCKERFILE = """# Define custom function directory
 ARG FUNCTION_DIR="/function"

@@ -20,40 +20,59 @@ app = typer.Typer()
 
 @app.command("init")
 def run_init(
-    name: str = typer.Argument(..., help="name of container"),
+    name: str = typer.Argument(..., help="name of project"),
     batch: bool = typer.Option(False, "--batch", "-b", help="init a batch environment"),
+    code: bool = typer.Option(
+        False, "--code", "-c", help="init a serverless environment"
+    ),
 ):
     if not name:
         print("Must use the --name option")
     name = utility.slugify(name)
     utility.create_folder(name)
     os.chdir(name)
-    envs = content.BATCH_ENV_FILE if batch else content.ENV_FILE
+    envs = (
+        content.BATCH_ENV_FILE
+        if batch
+        else content.CODE_ENV_FILE if code else content.ENV_FILE
+    )
     env_content = {"Name": name, **envs}
     env_content = json.dumps(env_content, indent=2)
     utility.create_file(".red", env_content)
-    utility.create_file(
-        "Dockerfile",
-        content.BATCH_DOCKERFILE if batch else content.PYTHON_LAMBDA_DOCKERFILE,
-    )
-    if not batch:
-        utility.create_file("lambda_function.py", content.PYTHON_LAMBDA_FUNCTION)
+    if not code:
+        utility.create_file(
+            "Dockerfile",
+            content.BATCH_DOCKERFILE if batch else content.PYTHON_LAMBDA_DOCKERFILE,
+        )
+        if not batch:
+            utility.create_file("lambda_function.py", content.PYTHON_LAMBDA_FUNCTION)
+        else:
+            utility.create_file("main.py", content.BATCH_PYTHON)
     else:
-        utility.create_file("main.py", content.BATCH_PYTHON)
+        # serverless
+        utility.create_file("main.py", content.PYTHON_LAMBDA_FUNCTION)
     print(INIT_FINISH(name))
 
 
 @app.command("deploy")
 def run_deploy(
     skip_build: bool = typer.Option(
-        False, "--skip-build", "-sb", help="skip build phase"
+        False,
+        "--skip-build",
+        "-sb",
+        help="skip build phase (only for container workloads)",
     ),
-    skip_push: bool = typer.Option(False, "--skip-push", "-sp", help="skip push phase"),
+    skip_push: bool = typer.Option(
+        False,
+        "--skip-push",
+        "-sp",
+        help="skip push phase (only for container workloads)",
+    ),
     no_infra: bool = typer.Option(
         False,
         "--no-infra",
         "-ni",
-        help="only build and deploy image to ECR, will not deploy compute infra",
+        help="only build and deploy image to ECR, will not deploy compute infra (only for container workloads)",
     ),
 ):
     with Progress(
@@ -65,26 +84,39 @@ def run_deploy(
         config = load_config()
         name = config.get("Name")
         # create ecr container if it doesn't exist and collect ecr arn
-        repo_uri = ecr.create_ecr(name)
-        account_ecr = repo_uri.split("/")[0]
-        # build and ship image to ecr
-        if not skip_build:
-            progress.update(task, description=f"[#ff4444]Pushing to ECR")
-            docker.push_to_ecr(repo_uri, account_ecr, skip_push)
-        if no_infra:
-            return
-        if skip_push:
-            return
-        if config.get("Type") == "Batch":
-            progress.update(task, description=f"[#ff4444]Creating Batch Environment")
-            batch.create_batch_environment(name, repo_uri, config)
-        else:
-            progress.update(task, description=f"[#ff4444]Creating Lambda Environment")
-            # create  / update iam role
+        if config.get("Type") == "LambdaCode":
+            progress.update(
+                task, description=f"[#ff4444]Creating Serverless Lambda Environment"
+            )
             role_arn = iam.create_lambda_role(name, name, config.get("IamPolicy"))
             time.sleep(10)
             config["RoleArn"] = role_arn
-            compute.create_function(name, repo_uri, config)
+            compute.create_serverless_function(name, config)
+        else:
+            repo_uri = ecr.create_ecr(name)
+            account_ecr = repo_uri.split("/")[0]
+            # build and ship image to ecr
+            if not skip_build:
+                progress.update(task, description=f"[#ff4444]Pushing to ECR")
+                docker.push_to_ecr(repo_uri, account_ecr, skip_push)
+            if no_infra:
+                return
+            if skip_push:
+                return
+            if config.get("Type") == "Batch":
+                progress.update(
+                    task, description=f"[#ff4444]Creating Batch Environment"
+                )
+                batch.create_batch_environment(name, repo_uri, config)
+            else:
+                progress.update(
+                    task, description=f"[#ff4444]Creating Lambda Environment"
+                )
+                # create  / update iam role
+                role_arn = iam.create_lambda_role(name, name, config.get("IamPolicy"))
+                time.sleep(10)
+                config["RoleArn"] = role_arn
+                compute.create_function(name, repo_uri, config)
     print("RED project deployed")
 
 
@@ -167,7 +199,7 @@ def run_kill(
         if config.get("Type") == "Batch":
             batch.delete_batch_environment(name)
             return
-        compute.delete_resources(name)
+        compute.delete_resources(name, config.get("type"))
         print("Deleted RED project")
 
 

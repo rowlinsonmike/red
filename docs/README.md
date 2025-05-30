@@ -9,12 +9,12 @@
 
 <h5 style="margin:0;color:grey;letter-spacing:2px;" align="center">(Really Easy Deployments)
 </h5>
-<h4 align="center">Effortless container deployments to AWS
+<h4 align="center">Effortless serverless and container workload deployments to AWS
 </h4>
 
 <div align="center">
 <p style="max-width:500px;" align="center">
-Unleash container power on AWS without the headache! RED transforms complex deployments into simple commands, letting you focus on innovation not infrastructure. Perfect for job based architectures - deploy and manage with just a few keystrokes!
+Unleash serverless and container workloads on AWS without the headache! RED transforms complexity into simple commands, letting you focus on innovation not infrastructure.
 </p>
 </div>
 
@@ -33,10 +33,109 @@ Unleash container power on AWS without the headache! RED transforms complex depl
 > - 🐳 Docker CLI
 
 ```bash
-pip install https://github.com/rowlinsonmike/red/raw/refs/heads/main/dist/red-1.0.0.tar.gz
+pip install https://github.com/rowlinsonmike/red/raw/refs/heads/main/dist/red-1.1.0.tar.gz
 ```
 
-# Lambda Tutorial
+# Lambda Serverless Tutorial
+
+In this tutorial, we’ll assume that `red` is already installed on your system. If that’s not the case, see [Installation](#installation).
+
+We are going to deploy a container to Lambda that gets the latest posts from Reddit's frontpage using the RSS feed.
+
+This tutorial will walk you through these tasks:
+
+1. [Create a new RED project](#creating-a-new-project)
+2. [Create serverless code to extract data from RSS feeds](#create-code)
+3. [Deploy to AWS](#deployment)
+4. [Run and review output](#execute)
+
+## Dependencies
+
+Make sure to install any depedencies in your project root, e.g., for python -
+`pip install --target . requests`
+
+## Creating a new project
+
+Set up a new `red` project. Enter a directory where you’d like to store your code and run:
+
+```bash
+red init -c "reddit_rss"
+```
+
+> the `-c` denoted serverless code
+
+This will create a reddit_rss directory with the following contents:
+
+```
+.
+└── rss_feed/
+    ├── .red                 # red configuration file
+    ├── main.py              # python lambda handler
+```
+
+## Create Code
+
+The default project uses `python` but you can use whatever language you want. Read up on that [here](https://docs.aws.amazon.com/lambda/latest/dg/images-create.html).
+
+Update your code for `rss_feed/main.py`:
+
+```python
+import feedparser
+
+def handler(event, context):
+    # Parse the Reddit front page RSS feed
+    feed = feedparser.parse('https://www.reddit.com/.rss')
+
+    # Print the titles and links of the posts
+    for entry in feed.entries:
+        print(f"Title: {entry.title}")
+        print(f"Link: {entry.link}")
+```
+
+Make sure to install the feedparser dependency, `pip install --target . feedparser`
+
+## Deployment
+
+Now let's deploy our serverless code, go to the top level of the `rss_feed` directory and run:
+
+```bash
+red deploy
+```
+
+This command creates the Lambda function and supporting resources needed to run your code. You will get an output similar to this in your `red.log`:
+
+```
+... (omitted for brevity)
+Successfully pushed docker image to ECR!
+Created IAM role: arn:aws:iam::123456789012:role/reddit_rss
+Attached AWSLambdaBasicExecutionRole policy to reddit_rss
+Creating Lambda function
+Waiting for Lambda function to be active...
+Lambda function created: arn:aws:lambda:us-east-1:123456789012:function:reddit_rss
+```
+
+## Execute
+
+Now let's put our container to work, go to the top level of the `rss_feed` directory and run:
+
+```bash
+red run
+```
+
+This command executes our AWS Lambda function in `RequestResponse` mode, waits for it to complete, and shows the tailing 4kb of the Cloudwatch log stream. You will get an output similar to this:
+
+```
+... (omitted for brevity)
+Title: Steam is the only software/company I use that hasn't enshitified and gotten worse over time.
+Link: https://www.reddit.com/r/pcmasterrace/comments/1fpuu14/steam_is_the_only_softwarecompany_i_use_that/
+END RequestId: a2f8ed44-d788-433b-b132-5e4a366ff0ab
+REPORT RequestId: a2f8ed44-d788-433b-b132-5e4a366ff0ab  Duration: 1770.21 ms    Billed Duration: 3057 ms        Memory Size: 128 MB
+Max Memory Used: 49 MB  Init Duration: 1285.86 ms
+```
+
+This tutorial covered the basics of RED, but there’s a lot not mentioned here. Check the [Basic Concepts](#basic-concepts) section to learn how to use other features. The [Customization](#customization) section outlines all the current options you have for your deployment.
+
+# Lambda Container Tutorial
 
 In this tutorial, we’ll assume that `red` is already installed on your system. If that’s not the case, see [Installation](#installation).
 
@@ -484,14 +583,16 @@ The following configurations are supported in the `.red` json file.
   "IamPolicy": <a href="##iam-policy">{...}</a> (OPTIONAL),
   "Env": <a href="##environment-variables">{...}</a> (OPTIONAL),
   "Vpc": <a href="##vpc">{...}</a> (*OPTIONAL),
-  "Arch: <a href="##architectures">x86_64</a> (OPTIONAL)
+  "Arch": <a href="##architectures">x86_64</a> (OPTIONAL),
+  "Runtime": <a href="##lambda-runtime">{...}</a> (*OPTIONAL),
+  "Handler": <a href="##handler">{...}</a> (*OPTIONAL),
 }
 </pre>
 </div>
 
 ## Name
 
-> (BATCH | LAMBDA)
+> (BATCH | LAMBDA | LAMBDACODE)
 >
 > The name shouldn't contain special characters or spaces
 
@@ -499,16 +600,17 @@ The name used to create all the required resources.
 
 ## Type
 
-> (BATCH | LAMBDA)
+> (BATCH | LAMBDA | LAMBDACODE)
 
 The type determines what type of deployment will happen
 
 1. Lambda
 2. Batch
+3. LambdaCode
 
 ## Timeout
 
-> (BATCH | LAMBDA)
+> (BATCH | LAMBDA | LAMBDACODE)
 
 The maximum time in seconds that the container can run before it is stopped.
 
@@ -526,7 +628,7 @@ Available Options - Reference
 
 ## Memory Size
 
-> (BATCH | LAMBDA)
+> (BATCH | LAMBDA | LAMBDACODE)
 
 The amount of memory available to the container at runtime. Increasing the memory also increases its CPU allocation. The default value is `128 MB`. The value can be any multiple of `1 MB`.
 
@@ -536,7 +638,7 @@ The amount of memory available to the container at runtime. Increasing the memor
 
 ## Iam Policy
 
-> (BATCH | LAMBDA)
+> (BATCH | LAMBDA | LAMBDACODE)
 
 This provides your executions with custom permissions via an IAM policy.
 
@@ -555,7 +657,7 @@ This provides your executions with custom permissions via an IAM policy.
 
 ## Environment Variables
 
-> (BATCH | LAMBDA)
+> (BATCH | LAMBDA | LAMBDACODE)
 
 You can specify environment variables as key value pairs.
 
@@ -567,7 +669,7 @@ You can specify environment variables as key value pairs.
 
 ## VPC
 
-> (BATCH | LAMBDA)
+> (BATCH | LAMBDA | LAMBDACODE)
 >
 > You must run `kill` command and redeploy if this configuration is updated. Make sure the subnets being deployed into have internet access (nat gateway or igw). If you are using the batch environment you **MUST** specify VPC settings.
 
@@ -618,6 +720,22 @@ Available Options
 ```json
 ["ENABLED", "DISABLED"]
 ```
+
+## Lambda Runtime
+
+> (LAMBDACODE)
+
+Select lambda runtime
+
+Available Options [here](https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html)
+
+## Handler
+
+> (LAMBDACODE)
+
+Specifcy the handler function Lambda will use. Default is `main.handler`
+
+Learn about handler options [here](https://docs.aws.amazon.com/lambda/latest/dg/getting-started.html)
 
 ## Batch
 

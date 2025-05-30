@@ -399,6 +399,7 @@ def create_batch_environment(
             retryStrategy={"attempts": 1},
             propagateTags=True,
             containerProperties={
+                "enableExecuteCommand": True,
                 "image": repo_uri,
                 "jobRoleArn": role,
                 "executionRoleArn": role,

@@ -12,6 +12,50 @@ from rich.text import Text
 from rich import box
 from rich.columns import Columns
 from rich.markdown import Markdown
+import os
+import zipfile
+import shutil
+from pathlib import Path
+
+
+def create_lambda_zip(output_file):
+    source_dir = os.getcwd()
+    # Create temporary directory for building the package
+    source_files = [x for x in Path(source_dir).rglob("*")]
+    temp_dir = Path("lambda_package")
+    temp_dir.mkdir(exist_ok=True)
+
+    try:
+        # Copy source files
+        for item in source_files:
+            if (
+                item.is_file()
+                and item.name != "__pycache__"
+                and item.name != "lambda_package"
+                and item.name != "red.log"
+                and item.name != ".DS_Store"
+                and item.name != "requirements.txt"
+            ):
+                rel_path = item.relative_to(source_dir)
+                dest_path = temp_dir / rel_path
+                print(dest_path, temp_dir, rel_path)
+                dest_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(str(item), str(dest_path))
+
+        # Create zip file
+        with zipfile.ZipFile(output_file, "w", zipfile.ZIP_DEFLATED) as zip_file:
+            for root, dirs, files in os.walk(temp_dir):
+                for file in files:
+                    file_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(file_path, temp_dir)
+                    zip_file.write(file_path, rel_path)
+
+        # Set correct permissions
+        os.chmod(output_file, 0o644)
+
+    finally:
+        # Clean up temporary directory
+        shutil.rmtree(temp_dir)
 
 
 @log_output
@@ -34,6 +78,90 @@ def wait_for_function_active(function_name, max_wait_time=300):
         time.sleep(10)
 
     return False
+
+
+@log_output
+def create_serverless_function(function_name, config):
+    create_lambda_zip("lambda_package.zip")
+    lambda_client = boto3.client("lambda")
+    try:
+        existing_function = lambda_client.get_function(FunctionName=function_name)
+        try:
+            print(f"Updating Lambda function")
+            current_version = int(
+                existing_function["Configuration"]["Environment"]["Variables"].get(
+                    "version", 0
+                )
+            )
+        except:
+            current_version = 0
+        new_version = current_version + 1
+
+        # Read zip file contents
+        with open("lambda_package.zip", "rb") as file_data:
+            function_params = {
+                "Timeout": config.get("Timeout", 300),
+                "MemorySize": config.get("MemorySize", 128),
+                "Role": config.get("RoleArn"),
+                "KMSKeyArn": "",
+            }
+
+            if config.get("Vpc"):
+                function_params["VpcConfig"] = config.get("Vpc")
+
+            config["Environment"] = config.get("Environment", {})
+            config["Environment"]["Variables"] = config["Environment"].get(
+                "Variables", {}
+            )
+            config["Environment"]["Variables"]["version"] = new_version
+
+            response = lambda_client.update_function_configuration(
+                FunctionName=function_name,
+                **function_params,
+            )
+            waiter = lambda_client.get_waiter("function_updated")
+            waiter.wait(FunctionName=function_name)
+
+            # Update function code with zip file
+            response = lambda_client.update_function_code(
+                FunctionName=function_name, ZipFile=file_data.read(), Publish=True
+            )
+            wait_for_function_active(function_name)
+            print(f"Lambda function updated")
+
+    except lambda_client.exceptions.ResourceNotFoundException:
+        print(f"Creating Lambda function")
+
+        # Read zip file contents
+        with open("lambda_package.zip", "rb") as file_data:
+            function_params = {
+                "Timeout": config.get("Timeout", 300),
+                "MemorySize": config.get("MemorySize", 128),
+                "Role": config.get("RoleArn"),
+                "Architectures": [config.get("Arch", "x86_64")],
+                "KMSKeyArn": "",
+                "PackageType": "Zip",
+            }
+
+            if config.get("Vpc"):
+                function_params["VpcConfig"] = config.get("Vpc")
+
+            config["Environment"] = config.get("Environment", {})
+            config["Environment"]["Variables"] = config["Environment"].get(
+                "Variables", {}
+            )
+            config["Environment"]["Variables"]["version"] = "1"
+
+            response = lambda_client.create_function(
+                FunctionName=function_name,
+                Runtime=config.get("Runtime", "python3.13"),  # Specify Python runtime
+                Handler=config.get("Handler", "main.handler"),  # Specify handler
+                Code={"ZipFile": file_data.read()},
+                **function_params,
+            )
+            wait_for_function_active(function_name)
+            print(f"Lambda function created: {response['FunctionArn']}")
+            return response["FunctionArn"]
 
 
 @log_output
@@ -129,7 +257,7 @@ def execute_and_tail_lambda(function_name, payload, detached):
 
 
 @log_output
-def delete_resources(function_name):
+def delete_resources(function_name, type):
     lambda_client = boto3.client("lambda")
     iam_client = boto3.client("iam")
     ecr_client = boto3.client("ecr")
@@ -173,21 +301,22 @@ def delete_resources(function_name):
         time.sleep(5)
     except iam_client.exceptions.NoSuchEntityException:
         print(f"IAM role {schedule_name} not found")
-
-    # Delete ECR repository and images
-    try:
-        response = ecr_client.describe_images(repositoryName=function_name)
-        image_ids = [
-            {"imageDigest": image["imageDigest"]} for image in response["imageDetails"]
-        ]
-        if image_ids:
-            ecr_client.batch_delete_image(
-                repositoryName=function_name, imageIds=image_ids
-            )
-        ecr_client.delete_repository(repositoryName=function_name)
-        print(f"Deleting ECR repository: {function_name}")
-    except ecr_client.exceptions.RepositoryNotFoundException:
-        print(f"ECR repository {function_name} not found")
+    if type != "LambdaCode":
+        # Delete ECR repository and images
+        try:
+            response = ecr_client.describe_images(repositoryName=function_name)
+            image_ids = [
+                {"imageDigest": image["imageDigest"]}
+                for image in response["imageDetails"]
+            ]
+            if image_ids:
+                ecr_client.batch_delete_image(
+                    repositoryName=function_name, imageIds=image_ids
+                )
+            ecr_client.delete_repository(repositoryName=function_name)
+            print(f"Deleting ECR repository: {function_name}")
+        except ecr_client.exceptions.RepositoryNotFoundException:
+            print(f"ECR repository {function_name} not found")
 
     print("All resources have been terminated")
 
