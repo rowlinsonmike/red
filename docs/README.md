@@ -9,12 +9,12 @@
 
 <h5 style="margin:0;color:grey;letter-spacing:2px;" align="center">(Really Easy Deployments)
 </h5>
-<h4 align="center">Effortless serverless and container workload deployments to AWS
+<h4 align="center">Effortless deployments for your python workloads to AWS
 </h4>
 
 <div align="center">
 <p style="max-width:500px;" align="center">
-Unleash serverless and container workloads on AWS without the headache! RED transforms complexity into simple commands, letting you focus on innovation not infrastructure.
+RED transforms complexity into simple commands, letting you focus on innovation not infrastructure.
 </p>
 </div>
 
@@ -33,7 +33,7 @@ Unleash serverless and container workloads on AWS without the headache! RED tran
 > - 🐳 Docker CLI
 
 ```bash
-pip install https://github.com/rowlinsonmike/red/raw/refs/heads/main/dist/red-1.1.0.tar.gz
+pip install https://github.com/rowlinsonmike/red/raw/refs/heads/main/dist/red-1.2.0.tar.gz
 ```
 
 # Lambda Serverless Tutorial
@@ -51,7 +51,7 @@ This tutorial will walk you through these tasks:
 
 ## Dependencies
 
-Make sure to install any depedencies in your project root, e.g., for python -
+Make sure to install any depedencies in your project root -
 `pip install --target . requests`
 
 ## Creating a new project
@@ -74,8 +74,6 @@ This will create a reddit_rss directory with the following contents:
 ```
 
 ## Create Code
-
-The default project uses `python` but you can use whatever language you want. Read up on that [here](https://docs.aws.amazon.com/lambda/latest/dg/images-create.html).
 
 Update your code for `rss_feed/main.py`:
 
@@ -169,8 +167,6 @@ This will create a reddit_rss directory with the following contents:
 ```
 
 ## Create a container
-
-The default project uses `python` but you can use whatever language you want. Read up on that [here](https://docs.aws.amazon.com/lambda/latest/dg/images-create.html).
 
 This is the updated code for `rss_feed/Dockerfile`:
 
@@ -322,8 +318,6 @@ We need to upate the `.red` config file to tell `RED` how to deploy our Batch en
 ```
 
 ## Create a container
-
-This default project uses `python` but you can use whatever language you want.
 
 This is the updated code for `rss_feed/Dockerfile`:
 

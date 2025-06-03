@@ -16,6 +16,7 @@ import os
 import zipfile
 import shutil
 from pathlib import Path
+from red import docker
 
 
 def create_lambda_zip(output_file):
@@ -82,7 +83,7 @@ def wait_for_function_active(function_name, max_wait_time=300):
 
 @log_output
 def create_serverless_function(function_name, config):
-    create_lambda_zip("lambda_package.zip")
+    docker.build_serverless_package(config)
     lambda_client = boto3.client("lambda")
     try:
         existing_function = lambda_client.get_function(FunctionName=function_name)
@@ -104,16 +105,14 @@ def create_serverless_function(function_name, config):
                 "MemorySize": config.get("MemorySize", 128),
                 "Role": config.get("RoleArn"),
                 "KMSKeyArn": "",
+                "Environment": {},
             }
 
             if config.get("Vpc"):
                 function_params["VpcConfig"] = config.get("Vpc")
 
-            config["Environment"] = config.get("Environment", {})
-            config["Environment"]["Variables"] = config["Environment"].get(
-                "Variables", {}
-            )
-            config["Environment"]["Variables"]["version"] = new_version
+            function_params["Environment"]["Variables"] = config.get("Env", {})
+            function_params["Environment"]["Variables"]["version"] = str(new_version)
 
             response = lambda_client.update_function_configuration(
                 FunctionName=function_name,
@@ -141,20 +140,19 @@ def create_serverless_function(function_name, config):
                 "Architectures": [config.get("Arch", "x86_64")],
                 "KMSKeyArn": "",
                 "PackageType": "Zip",
+                "Environment": {},
             }
 
             if config.get("Vpc"):
                 function_params["VpcConfig"] = config.get("Vpc")
 
-            config["Environment"] = config.get("Environment", {})
-            config["Environment"]["Variables"] = config["Environment"].get(
-                "Variables", {}
-            )
-            config["Environment"]["Variables"]["version"] = "1"
+            function_params["Environment"]["Variables"] = config.get("Env", {})
+            function_params["Environment"]["Variables"]["version"] = "1"
 
             response = lambda_client.create_function(
                 FunctionName=function_name,
-                Runtime=config.get("Runtime", "python3.13"),  # Specify Python runtime
+                Runtime="python"
+                + config.get("Runtime", "3.13"),  # Specify Python runtime
                 Handler=config.get("Handler", "main.handler"),  # Specify handler
                 Code={"ZipFile": file_data.read()},
                 **function_params,
@@ -185,13 +183,12 @@ def create_function(function_name, repo_uri, config):
             "MemorySize": config.get("MemorySize", 128),
             "Role": config.get("RoleArn"),
             "KMSKeyArn": "",
+            "Environment": {},
         }
         if config.get("Vpc"):
             function_params["VpcConfig"] = config.get("Vpc")
-        config["Environment"] = config.get("Environment", {})
-        config["Environment"]["Variables"] = config["Environment"].get("Variables", {})
-        config["Environment"]["Variables"]["version"] = new_version
-        config["Environment"]["Variables"] = {**config["Environment"]["Variables"]}
+        function_params["Environment"]["Variables"] = config.get("Env", {})
+        config["Environment"]["Variables"]["version"] = str(new_version)
         response = lambda_client.update_function_configuration(
             FunctionName=function_name,
             **function_params,
@@ -212,13 +209,13 @@ def create_function(function_name, repo_uri, config):
             "Role": config.get("RoleArn"),
             "Architectures": [config.get("Arch", "x86_64")],
             "KMSKeyArn": "",
+            "Environment": {},
         }
         if config.get("Vpc"):
             function_params["VpcConfig"] = config.get("Vpc")
-        config["Environment"] = config.get("Environment", {})
-        config["Environment"]["Variables"] = config["Environment"].get("Variables", {})
+        function_params["Environment"]["Variables"] = config.get("Env", {})
         config["Environment"]["Variables"]["version"] = "1"
-        config["Environment"]["Variables"] = {**config["Environment"]["Variables"]}
+        config["Environment"] = config.get("Environment", {})
 
         response = lambda_client.create_function(
             FunctionName=function_name,

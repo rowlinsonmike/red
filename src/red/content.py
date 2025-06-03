@@ -49,7 +49,8 @@ CODE_ENV_FILE = {
     "Timeout": 300,
     "MemorySize": 128,
     "Handler": "main.handler",
-    "Runtime": "python3.13",
+    "Runtime": "3.13",
+    "Arch": "x86_64",
 }
 
 PYTHON_LAMBDA_DOCKERFILE = """# Define custom function directory

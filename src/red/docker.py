@@ -1,6 +1,7 @@
 import sh
 import sys
 from red.utility import print, log_output
+import os
 
 
 @log_output
@@ -45,3 +46,31 @@ def push_to_ecr(uri, account_ecr, skip_push):
     if skip_push:
         return
     push_image(uri)
+
+
+@log_output
+def build_serverless_package(config):
+    runtime = config.get("Runtime")
+    platform = (
+        "manylinux2014_x86_64"
+        if config.get("Arch") == "x86_64"
+        else "manylinux2014_aarch64"
+    )
+    cwd = os.getcwd()
+    # Create docker command with proper argument handling
+    docker = sh.docker.bake(
+        "run", "-v", f"{cwd}:/working", "--rm", "amazonlinux:latest"
+    )
+    # Chain commands inside container
+    commands = f"""
+    cd /working
+    ls -lat
+    yum install pip zip -y &&
+    pip install --platform {platform} --target=. --implementation cp --python-version {runtime} --only-binary=:all: --upgrade -r ./requirements.txt &&
+    rm -f ../lambda_package.zip
+    rm -f ./lambda_package.zip
+    zip ../lambda_package.zip -r . &&
+    mv ../lambda_package.zip ./lambda_package.zip
+    """
+    # Execute the command
+    docker("/bin/bash", "-c", commands, _out=sys.stdout, _err=sys.stderr)

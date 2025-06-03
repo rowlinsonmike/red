@@ -51,6 +51,7 @@ def run_init(
     else:
         # serverless
         utility.create_file("main.py", content.PYTHON_LAMBDA_FUNCTION)
+        utility.create_file("requirements.txt", "")
     print(INIT_FINISH(name))
 
 

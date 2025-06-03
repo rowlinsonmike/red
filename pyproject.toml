@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "red"
-version = "1.1.0"
-description = "Effortless container deployments to AWS"
+version = "1.2.0"
+description = "Effortless python deployments to AWS"
 readme = "docs/README.md"
 requires-python = ">=3.12"
 dependencies = [
