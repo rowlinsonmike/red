@@ -1,7 +1,7 @@
 Metadata-Version: 2.4
 Name: red
-Version: 1.2.0
-Summary: Effortless container deployments to AWS
+Version: 1.3.0
+Summary: Effortless python deployments to AWS
 Requires-Python: >=3.12
 Description-Content-Type: text/markdown
 Requires-Dist: boto3>=1.35.16
@@ -44,7 +44,7 @@ RED transforms complexity into simple commands, letting you focus on innovation 
 > - 🐳 Docker CLI
 
 ```bash
-pip install https://github.com/rowlinsonmike/red/raw/refs/heads/main/dist/red-1.2.0.tar.gz
+pip install https://github.com/rowlinsonmike/red/raw/refs/heads/main/dist/red-1.3.0.tar.gz
 ```
 
 # Lambda Serverless Tutorial

@@ -13,7 +13,9 @@ from red import ecr, docker, utility, content, iam, compute, schedule, batch
 import shlex
 import os
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from datetime import datetime
 
+selected_date = None
 
 app = typer.Typer()
 
@@ -164,15 +166,11 @@ def run_execute(
         compute.execute_and_tail_lambda(name, payload, detached)
 
 
-@app.command("stat")
-def run_stat(log: str = typer.Option("", "--log", "-l", help="log stream to view")):
+@app.command()
+def sched(log: str = typer.Option("", "--log", "-l", help="log stream to view")):
     config = load_config()
     name = config.get("Name")
-    if log:
-        compute.get_log(name, log, config.get("Type"))
-        return
     schedule.list_schedules(name)
-    compute.list_logs(name, config.get("Type"))
 
 
 @app.command("kill")
@@ -202,6 +200,29 @@ def run_kill(
             return
         compute.delete_resources(name, config.get("type"))
         print("Deleted RED project")
+
+
+def select_option(text, options):
+    while True:
+        choice = typer.prompt(
+            text,
+            type=int,
+            show_default=False,
+        )
+        if 1 <= choice <= len(options):
+            return options[choice - 1]
+        print("Invalid option. Please try again.")
+
+
+@app.command()
+def log(latest: bool = typer.Option(False, "--latest", "-l", help="get latest log")):
+    config = load_config()
+    name = config.get("Name")
+    if latest:
+        return compute.get_log(name, "_latest", config.get("Type"))
+    logs = compute.list_logs(name, config.get("Type"))
+    log = select_option("Select a log number", logs)
+    compute.get_log(name, log.get("logStreamName"), config.get("Type"))
 
 
 @app.callback(invoke_without_command=True)

@@ -33,7 +33,7 @@ RED transforms complexity into simple commands, letting you focus on innovation 
 > - 🐳 Docker CLI
 
 ```bash
-pip install https://github.com/rowlinsonmike/red/raw/refs/heads/main/dist/red-1.2.0.tar.gz
+pip install https://github.com/rowlinsonmike/red/raw/refs/heads/main/dist/red-1.3.0.tar.gz
 ```
 
 # Lambda Serverless Tutorial

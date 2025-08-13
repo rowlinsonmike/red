@@ -105,7 +105,7 @@ def create_serverless_function(function_name, config):
                 "MemorySize": config.get("MemorySize", 128),
                 "Role": config.get("RoleArn"),
                 "KMSKeyArn": "",
-                "Environment": {},
+                "Environment": {"Variables": {}},
             }
 
             if config.get("Vpc"):
@@ -140,7 +140,7 @@ def create_serverless_function(function_name, config):
                 "Architectures": [config.get("Arch", "x86_64")],
                 "KMSKeyArn": "",
                 "PackageType": "Zip",
-                "Environment": {},
+                "Environment": {"Variables": {}},
             }
 
             if config.get("Vpc"):
@@ -183,12 +183,12 @@ def create_function(function_name, repo_uri, config):
             "MemorySize": config.get("MemorySize", 128),
             "Role": config.get("RoleArn"),
             "KMSKeyArn": "",
-            "Environment": {},
+            "Environment": {"Variables": {}},
         }
         if config.get("Vpc"):
             function_params["VpcConfig"] = config.get("Vpc")
         function_params["Environment"]["Variables"] = config.get("Env", {})
-        config["Environment"]["Variables"]["version"] = str(new_version)
+        function_params["Environment"]["Variables"]["version"] = str(new_version)
         response = lambda_client.update_function_configuration(
             FunctionName=function_name,
             **function_params,
@@ -209,14 +209,12 @@ def create_function(function_name, repo_uri, config):
             "Role": config.get("RoleArn"),
             "Architectures": [config.get("Arch", "x86_64")],
             "KMSKeyArn": "",
-            "Environment": {},
+            "Environment": {"Variables": {}},
         }
         if config.get("Vpc"):
             function_params["VpcConfig"] = config.get("Vpc")
         function_params["Environment"]["Variables"] = config.get("Env", {})
-        config["Environment"]["Variables"]["version"] = "1"
-        config["Environment"] = config.get("Environment", {})
-
+        function_params["Environment"]["Variables"]["version"] = "1"
         response = lambda_client.create_function(
             FunctionName=function_name,
             PackageType="Image",
@@ -342,6 +340,7 @@ def list_logs(name, compute_type):
         box=box.ROUNDED,
     )
     print(panel)
+    return response["logStreams"]
 
 
 def get_log(name, log_stream_name, compute_type):
@@ -352,7 +351,23 @@ def get_log(name, log_stream_name, compute_type):
     else:
         # Specify the log group name for your Lambda function
         log_group_name = f"/aws/lambda/{name}"
-    print(log_group_name)
+    if log_stream_name == "_latest":
+        stream_response = logs_client.describe_log_streams(
+            logGroupName=log_group_name,
+            orderBy="LastEventTime",
+            descending=True,
+            limit=1,
+        )
+        if not stream_response.get("logStreams"):
+            panel = Panel(
+                Markdown("no logs"),
+                title="🦊 RED project logs",
+                border_style="#ff4444",
+                box=box.ROUNDED,
+            )
+            return print(panel)
+        log_stream_name = stream_response["logStreams"][0]["logStreamName"]
+
     # Get the log events
     response = logs_client.get_log_events(
         logGroupName=log_group_name, logStreamName=log_stream_name, startFromHead=True
