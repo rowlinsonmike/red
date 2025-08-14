@@ -152,7 +152,7 @@ def list_schedules(name):
         scheduler_client = boto3.client("scheduler")
         response = scheduler_client.list_schedules(GroupName=name).get("Schedules", [])
         for index, x in enumerate(response):
-            md += f"{index+1}. {x.get("Name")} \n\t>{ x.get("CreationDate").strftime("%Y-%m-%d %H:%M:%S")}\n"
+            md += f'{index+1}. {x.get("Name")} \n\t>{ x.get("CreationDate").strftime("%Y-%m-%d %H:%M:%S")}\n'
 
     except:
         md += "**No Schedules**"
