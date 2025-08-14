@@ -251,12 +251,32 @@ def execute_and_tail_lambda(function_name, payload, detached):
         print(f"An error occurred: {e}")
 
 
+def delete_ecr_repo(ecr_client, function_name):
+    try:
+        response = ecr_client.describe_images(repositoryName=function_name)
+        image_ids = [
+            {"imageDigest": image["imageDigest"]} for image in response["imageDetails"]
+        ]
+        if image_ids:
+            ecr_client.batch_delete_image(
+                repositoryName=function_name, imageIds=image_ids
+            )
+        ecr_client.delete_repository(repositoryName=function_name)
+        print(f"Deleting ECR repository: {function_name}")
+    except ecr_client.exceptions.RepositoryNotFoundException:
+        print(f"ECR repository {function_name} not found")
+
+
 @log_output
 def delete_resources(function_name, type):
     lambda_client = boto3.client("lambda")
     iam_client = boto3.client("iam")
     ecr_client = boto3.client("ecr")
 
+    if type.lower() == "image":
+        delete_ecr_repo(ecr_client, function_name)
+        print("All resources have been terminated")
+        return
     # Delete Lambda function
     try:
         lambda_client.delete_function(FunctionName=function_name)
@@ -298,20 +318,21 @@ def delete_resources(function_name, type):
         print(f"IAM role {schedule_name} not found")
     if type != "LambdaCode":
         # Delete ECR repository and images
-        try:
-            response = ecr_client.describe_images(repositoryName=function_name)
-            image_ids = [
-                {"imageDigest": image["imageDigest"]}
-                for image in response["imageDetails"]
-            ]
-            if image_ids:
-                ecr_client.batch_delete_image(
-                    repositoryName=function_name, imageIds=image_ids
-                )
-            ecr_client.delete_repository(repositoryName=function_name)
-            print(f"Deleting ECR repository: {function_name}")
-        except ecr_client.exceptions.RepositoryNotFoundException:
-            print(f"ECR repository {function_name} not found")
+        delete_ecr_repo(ecr_client, function_name)
+        # try:
+        #     response = ecr_client.describe_images(repositoryName=function_name)
+        #     image_ids = [
+        #         {"imageDigest": image["imageDigest"]}
+        #         for image in response["imageDetails"]
+        #     ]
+        #     if image_ids:
+        #         ecr_client.batch_delete_image(
+        #             repositoryName=function_name, imageIds=image_ids
+        #         )
+        #     ecr_client.delete_repository(repositoryName=function_name)
+        #     print(f"Deleting ECR repository: {function_name}")
+        # except ecr_client.exceptions.RepositoryNotFoundException:
+        #     print(f"ECR repository {function_name} not found")
 
     print("All resources have been terminated")
 

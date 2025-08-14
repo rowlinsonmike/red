@@ -4,11 +4,12 @@ from dataclasses import dataclass
 import boto3
 import json
 import sh
+from pathlib import Path
 import sys
 import time
 import json
 from red.utility import print, load_config
-from red.content import INIT_FINISH
+from red.content import INIT_FINISH, INIT_IMAGE_FINISH
 from red import ecr, docker, utility, content, iam, compute, schedule, batch
 import shlex
 import os
@@ -22,12 +23,24 @@ app = typer.Typer()
 
 @app.command("init")
 def run_init(
-    name: str = typer.Argument(..., help="name of project"),
+    name: str = typer.Argument(None, help="name of project"),
     batch: bool = typer.Option(False, "--batch", "-b", help="init a batch environment"),
     code: bool = typer.Option(
         False, "--code", "-c", help="init a serverless environment"
     ),
+    image: str = typer.Option(
+        False,
+        "--image",
+        "-i",
+        help="init an existing repo for building and deploying an image to ECR. Specify the relative path of the Dockerfile.",
+    ),
 ):
+    if image:
+        name = Path.cwd().name.replace(" ", "-")
+        env_content = {"Name": name, "Type": "Image", "DockerfilePath": image}
+        utility.create_file(".red", json.dumps(env_content, indent=2))
+        print(INIT_IMAGE_FINISH(name))
+        return
     if not name:
         print("Must use the --name option")
     name = utility.slugify(name)
@@ -101,8 +114,8 @@ def run_deploy(
             # build and ship image to ecr
             if not skip_build:
                 progress.update(task, description=f"[#ff4444]Pushing to ECR")
-                docker.push_to_ecr(repo_uri, account_ecr, skip_push)
-            if no_infra:
+                docker.push_to_ecr(repo_uri, account_ecr, skip_push, config)
+            if no_infra or config.get("Type").lower() == "image":
                 return
             if skip_push:
                 return
@@ -166,6 +179,24 @@ def run_execute(
         compute.execute_and_tail_lambda(name, payload, detached)
 
 
+@app.command("pull")
+def run_pull(
+    repo_uri: str = typer.Argument(
+        ...,
+        help='ECR repo uri (e.g. "ECR image URI, .e.g 123456789012.dkr.ecr.us-east-1.amazonaws.com/myimage:latest")',
+    ),
+):
+    with Progress(
+        SpinnerColumn(),
+        TextColumn("[progress.description]{task.description}"),
+        transient=True,
+    ) as progress:
+        task = progress.add_task("[#ff4444]Pulling ECR Image...", total=None)
+        account_ecr = repo_uri.split("/")[0]
+        docker.pull_from_ecr(repo_uri, account_ecr)
+        print("Pulled ECR Image!")
+
+
 @app.command()
 def sched(log: str = typer.Option("", "--log", "-l", help="log stream to view")):
     config = load_config()
@@ -198,7 +229,7 @@ def run_kill(
         if config.get("Type") == "Batch":
             batch.delete_batch_environment(name)
             return
-        compute.delete_resources(name, config.get("type"))
+        compute.delete_resources(name, config.get("Type"))
         print("Deleted RED project")
 
 

@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: red
-Version: 1.3.0
+Version: 1.4.0
 Summary: Effortless python deployments to AWS
 Requires-Python: >=3.12
 Description-Content-Type: text/markdown
@@ -25,7 +25,7 @@ Requires-Dist: sh>=2.0.7
 
 <div align="center">
 <p style="max-width:500px;" align="center">
-RED transforms complexity into simple commands, letting you focus on innovation not infrastructure.
+Deploying workloads to AWS is overly complex and the tooling ecosystem out there is whack. Write code and send it. Period.
 </p>
 </div>
 
@@ -33,8 +33,7 @@ RED transforms complexity into simple commands, letting you focus on innovation 
 
 - 🦄 One command deploys
 - 🎨 Customization
-- ⏱️ Scheduling
-- 📦 Environment Variables
+- ⏱️ Execution and Scheduling
 
 # Installation
 
@@ -44,7 +43,7 @@ RED transforms complexity into simple commands, letting you focus on innovation 
 > - 🐳 Docker CLI
 
 ```bash
-pip install https://github.com/rowlinsonmike/red/raw/refs/heads/main/dist/red-1.3.0.tar.gz
+pip install https://github.com/rowlinsonmike/red/raw/refs/heads/main/dist/red-1.4.0.tar.gz
 ```
 
 # Lambda Serverless Tutorial
@@ -115,7 +114,6 @@ This command creates the Lambda function and supporting resources needed to run 
 
 ```
 ... (omitted for brevity)
-Successfully pushed docker image to ECR!
 Created IAM role: arn:aws:iam::123456789012:role/reddit_rss
 Attached AWSLambdaBasicExecutionRole policy to reddit_rss
 Creating Lambda function
@@ -396,6 +394,20 @@ Max Memory Used: 49 MB  Init Duration: 1285.86 ms
 
 This tutorial covered the basics of RED, but there’s a lot not mentioned here. Check the [Basic Concepts](#basic-concepts) section to learn how to use other features. The [Customization](#customization) section outlines all the current options you have for your deployment.
 
+# Bring your own container Tutorial
+
+You might have your own docker image you want to build and send to ECR. At the root of the existing repo run `red init -i path/to/Dockerfile`.
+
+By default the ECR repo will have the same name as the project your in. If you want to change that update the `Name` property in the `.red` config.
+
+Whenever your ready to send it run `red deploy`
+
+# Pull an image from an ECR repo
+
+If you have an image you'd like to pull down from ECR you can run
+
+`red pull <reponame:version>`
+
 # Basic Concepts
 
 ## Compute Type
@@ -581,6 +593,7 @@ The following configurations are supported in the `.red` json file.
 <pre>
 {
   "Name": <a href="##name">...</a> (REQUIRED),
+  "DockerfilePath": <a href="##dockerfile-path">...</a> (*OPTIONAL),
   "Type": <a href="##type">...</a> (REQUIRED),
   "Timeout": <a href="##timeout">300</a> (REQUIRED),
   "MemorySize": <a href="##memory-size">128</a> (REQUIRED),
@@ -597,21 +610,30 @@ The following configurations are supported in the `.red` json file.
 
 ## Name
 
-> (BATCH | LAMBDA | LAMBDACODE)
+> (BATCH | LAMBDA | LAMBDACODE | IMAGE)
 >
 > The name shouldn't contain special characters or spaces
 
 The name used to create all the required resources.
 
+## Dockerfile Path
+
+> (IMAGE)
+>
+> This is only required for image only deployments specified with `red init -i`
+
+The relative path is used as the location of the Dockerfile when building the image.
+
 ## Type
 
-> (BATCH | LAMBDA | LAMBDACODE)
+> (BATCH | LAMBDA | LAMBDACODE | IMAGE)
 
 The type determines what type of deployment will happen
 
 1. Lambda
 2. Batch
 3. LambdaCode
+4. Image
 
 ## Timeout
 

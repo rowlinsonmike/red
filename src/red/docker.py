@@ -21,9 +21,22 @@ def login_to_ecr(account_ecr):
 
 
 @log_output
-def build_image(uri):
+def build_image(uri, config):
     try:
-        sh.docker.build("-t", f"{uri}:latest", ".", _out=sys.stdout, _err=sys.stderr)
+        if config.get("Type").lower() == "image":
+            sh.docker.build(
+                "-t",
+                f"{uri}:latest",
+                "-f",
+                config.get("DockerfilePath", "Dockerfile"),
+                ".",
+                _out=sys.stdout,
+                _err=sys.stderr,
+            )
+        else:
+            sh.docker.build(
+                "-t", f"{uri}:latest", ".", _out=sys.stdout, _err=sys.stderr
+            )
         print("Successfully built container locally")
     except:
         print("An error occurred while trying to build image")
@@ -40,12 +53,27 @@ def push_image(uri):
         sys.exit()
 
 
-def push_to_ecr(uri, account_ecr, skip_push):
+@log_output
+def pull_image(uri):
+    try:
+        sh.docker.pull(f"{uri}", _out=sys.stdout, _err=sys.stderr)
+        print(f"Successfully pulled docker image from ECR ({uri})!\n")
+    except:
+        print("An error occurred while trying to pull docker image from ECR")
+        sys.exit()
+
+
+def push_to_ecr(uri, account_ecr, skip_push, config):
     login_to_ecr(account_ecr)
-    build_image(uri)
+    build_image(uri, config)
     if skip_push:
         return
     push_image(uri)
+
+
+def pull_from_ecr(uri, account_ecr):
+    login_to_ecr(account_ecr)
+    pull_image(uri)
 
 
 @log_output

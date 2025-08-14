@@ -21,6 +21,21 @@ def INIT_FINISH(x):
     return panel
 
 
+def INIT_IMAGE_FINISH(x):
+    steps_md = f"""
+## Next Steps:
+1. Develop your container
+2. `red deploy`
+"""
+    panel = Panel(
+        Markdown(steps_md),
+        title="🦊 RED project setup!",
+        border_style="#ff4444",
+        box=box.ROUNDED,
+    )
+    return panel
+
+
 BATCH_ENV_FILE = {
     "Type": "Batch",
     "Timeout": 10000,
