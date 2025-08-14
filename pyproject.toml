@@ -7,7 +7,7 @@ name = "red"
 version = "1.4.0"
 description = "Effortless python deployments to AWS"
 readme = "docs/README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.12"
 dependencies = [
     "boto3>=1.35.16",
     "rich>=13.8.1",
