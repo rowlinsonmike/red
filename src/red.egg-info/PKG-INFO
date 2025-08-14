@@ -2,7 +2,7 @@ Metadata-Version: 2.4
 Name: red
 Version: 1.4.0
 Summary: Effortless python deployments to AWS
-Requires-Python: >=3.12
+Requires-Python: >=3.9
 Description-Content-Type: text/markdown
 Requires-Dist: boto3>=1.35.16
 Requires-Dist: rich>=13.8.1
