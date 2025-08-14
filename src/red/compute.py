@@ -353,7 +353,7 @@ def list_logs(name, compute_type):
     logs_md = ""
 
     for index, x in enumerate(response["logStreams"]):
-        logs_md += f"{index+1}. {x.get("logStreamName")} \n\t>{milliseconds_to_date(x.get("creationTime"))}\n"
+        logs_md += f'{index+1}. {x.get("logStreamName")} \n\t>{milliseconds_to_date(x.get("creationTime"))}\n'
     panel = Panel(
         Markdown(logs_md),
         title="🦊 RED project logs",
