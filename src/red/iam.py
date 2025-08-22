@@ -77,6 +77,25 @@ def create_role(
             )
             if custom_policy:
                 custom_policy_arn = custom_policy["Arn"]
+                # Delete old versions of the policy
+                versions = iam.list_policy_versions(PolicyArn=custom_policy_arn)[
+                    "Versions"
+                ]
+                newest_version = sorted(
+                    versions, key=lambda x: x["CreateDate"], reverse=True
+                )[0]
+                for version in versions:
+                    if (
+                        version["VersionId"] != newest_version["VersionId"]
+                        and not version["IsDefaultVersion"]
+                    ):
+                        iam.delete_policy_version(
+                            PolicyArn=custom_policy_arn,
+                            VersionId=version["VersionId"],
+                        )
+                        print(
+                            f"Deleted version of custom policy: {version['VersionId']}"
+                        )
                 # Create a new version of the policy
                 iam.create_policy_version(
                     PolicyArn=custom_policy_arn,
@@ -84,21 +103,6 @@ def create_role(
                     SetAsDefault=True,
                 )
                 print(f"Updated custom policy: {custom_policy_arn}")
-
-                # Optionally, delete the oldest version if there are 5 versions (maximum allowed)
-                versions = iam.list_policy_versions(PolicyArn=custom_policy_arn)[
-                    "Versions"
-                ]
-                if len(versions) >= 5:
-                    oldest_version = sorted(versions, key=lambda x: x["CreateDate"])[0]
-                    if not oldest_version["IsDefaultVersion"]:
-                        iam.delete_policy_version(
-                            PolicyArn=custom_policy_arn,
-                            VersionId=oldest_version["VersionId"],
-                        )
-                        print(
-                            f"Deleted oldest version of custom policy: {oldest_version['VersionId']}"
-                        )
         # Attach the custom policy to the role if not already attached
         if custom_policy_arn:
             if not any(p["PolicyArn"] == custom_policy_arn for p in attached_policies):

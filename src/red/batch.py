@@ -395,11 +395,11 @@ def create_batch_environment(
             jobDefinitionName=job_def_name,
             type="container",
             platformCapabilities=["FARGATE"],
-            timeout={"attemptDurationSeconds": 10000},
+            timeout={"attemptDurationSeconds": config.get("Timeout", 10000)},
             retryStrategy={"attempts": 1},
             propagateTags=True,
             containerProperties={
-                "enableExecuteCommand": True,
+                # "enableExecuteCommand": True,
                 "image": repo_uri,
                 "jobRoleArn": role,
                 "executionRoleArn": role,
