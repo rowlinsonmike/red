@@ -32,7 +32,7 @@ Deploying workloads to AWS is overly complex and the tooling ecosystem out there
 > - 🐳 Docker CLI
 
 ```bash
-pip install https://github.com/rowlinsonmike/red/raw/refs/heads/main/dist/red-1.4.0.tar.gz
+pip install https://github.com/rowlinsonmike/red/raw/refs/heads/main/dist/red-1.5.0.tar.gz
 ```
 
 # Lambda Serverless Tutorial
@@ -289,7 +289,7 @@ This will create a reddit_rss directory with the following contents:
 .
 └── rss_feed/
     ├── .red                 # red configuration file
-    ├── lambda_handler.py    # python lambda handler
+    ├── main.py              # python handler
     └── Dockerfile           # container definition
 ```
 
