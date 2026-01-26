@@ -1,11 +1,12 @@
-import boto3
+import json
 import time
 import traceback
-from botocore.exceptions import ClientError
-import json
+
 import boto3
-import time
-from red.utility import print, log_output
+from botocore.exceptions import ClientError
+
+from red.iam import create_batch_role
+from red.utility import print
 
 
 def submit_batch_job(job_name, job_queue, job_definition, environment=None):
@@ -72,198 +73,6 @@ def get_job_definition_environment_variables(job_definition_name=None):
     return results
 
 
-@log_output
-def create_minimal_batch_role(role_name):
-    iam = boto3.client("iam")
-
-    # Trust policy allowing both Lambda and Batch
-    trust_policy = {
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-                "Effect": "Allow",
-                "Principal": {
-                    "Service": [
-                        "ecs.amazonaws.com",
-                        "ecs-tasks.amazonaws.com",
-                        "batch.amazonaws.com",
-                    ]
-                },
-                "Action": "sts:AssumeRole",
-            }
-        ],
-    }
-
-    # Basic permission policy
-    permission_policy = {
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-                "Sid": "AWSBatchPolicyStatement1",
-                "Effect": "Allow",
-                "Action": [
-                    "ec2:DescribeAccountAttributes",
-                    "ec2:DescribeInstances",
-                    "ec2:DescribeInstanceStatus",
-                    "ec2:DescribeInstanceAttribute",
-                    "ec2:DescribeSubnets",
-                    "ec2:DescribeSecurityGroups",
-                    "ec2:DescribeKeyPairs",
-                    "ec2:DescribeImages",
-                    "ec2:DescribeImageAttribute",
-                    "ec2:DescribeSpotInstanceRequests",
-                    "ec2:DescribeSpotFleetInstances",
-                    "ec2:DescribeSpotFleetRequests",
-                    "ec2:DescribeSpotPriceHistory",
-                    "ec2:DescribeSpotFleetRequestHistory",
-                    "ec2:DescribeVpcClassicLink",
-                    "ec2:DescribeLaunchTemplateVersions",
-                    "ec2:CreateLaunchTemplate",
-                    "ec2:DeleteLaunchTemplate",
-                    "ec2:RequestSpotFleet",
-                    "ec2:CancelSpotFleetRequests",
-                    "ec2:ModifySpotFleetRequest",
-                    "ec2:TerminateInstances",
-                    "ec2:RunInstances",
-                    "autoscaling:DescribeAccountLimits",
-                    "autoscaling:DescribeAutoScalingGroups",
-                    "autoscaling:DescribeLaunchConfigurations",
-                    "autoscaling:DescribeAutoScalingInstances",
-                    "autoscaling:DescribeScalingActivities",
-                    "autoscaling:CreateLaunchConfiguration",
-                    "autoscaling:CreateAutoScalingGroup",
-                    "autoscaling:UpdateAutoScalingGroup",
-                    "autoscaling:SetDesiredCapacity",
-                    "autoscaling:DeleteLaunchConfiguration",
-                    "autoscaling:DeleteAutoScalingGroup",
-                    "autoscaling:CreateOrUpdateTags",
-                    "autoscaling:SuspendProcesses",
-                    "autoscaling:PutNotificationConfiguration",
-                    "autoscaling:TerminateInstanceInAutoScalingGroup",
-                    "ecs:DescribeClusters",
-                    "ecs:DescribeContainerInstances",
-                    "ecs:DescribeTaskDefinition",
-                    "ecs:DescribeTasks",
-                    "ecs:ListAccountSettings",
-                    "ecs:ListClusters",
-                    "ecs:ListContainerInstances",
-                    "ecs:ListTaskDefinitionFamilies",
-                    "ecs:ListTaskDefinitions",
-                    "ecs:ListTasks",
-                    "ecs:CreateCluster",
-                    "ecs:DeleteCluster",
-                    "ecs:RegisterTaskDefinition",
-                    "ecs:DeregisterTaskDefinition",
-                    "ecs:RunTask",
-                    "ecs:StartTask",
-                    "ecs:StopTask",
-                    "ecs:UpdateContainerAgent",
-                    "ecs:DeregisterContainerInstance",
-                    "logs:CreateLogGroup",
-                    "logs:CreateLogStream",
-                    "logs:PutLogEvents",
-                    "logs:DescribeLogGroups",
-                    "iam:GetInstanceProfile",
-                    "iam:GetRole",
-                ],
-                "Resource": "*",
-            },
-            {
-                "Sid": "AWSBatchPolicyStatement2",
-                "Effect": "Allow",
-                "Action": "ecs:TagResource",
-                "Resource": ["arn:aws:ecs:*:*:task/*_Batch_*"],
-            },
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "ecr:GetAuthorizationToken",
-                    "ecr:BatchCheckLayerAvailability",
-                    "ecr:GetDownloadUrlForLayer",
-                    "ecr:BatchGetImage",
-                ],
-                "Resource": "*",
-            },
-            {
-                "Sid": "AWSBatchPolicyStatement3",
-                "Effect": "Allow",
-                "Action": "iam:PassRole",
-                "Resource": ["*"],
-                "Condition": {
-                    "StringEquals": {
-                        "iam:PassedToService": [
-                            "ec2.amazonaws.com",
-                            "ec2.amazonaws.com.cn",
-                            "ecs-tasks.amazonaws.com",
-                        ]
-                    }
-                },
-            },
-            {
-                "Sid": "AWSBatchPolicyStatement4",
-                "Effect": "Allow",
-                "Action": "iam:CreateServiceLinkedRole",
-                "Resource": "*",
-                "Condition": {
-                    "StringEquals": {
-                        "iam:AWSServiceName": [
-                            "spot.amazonaws.com",
-                            "spotfleet.amazonaws.com",
-                            "autoscaling.amazonaws.com",
-                            "ecs.amazonaws.com",
-                        ]
-                    }
-                },
-            },
-            {
-                "Sid": "AWSBatchPolicyStatement5",
-                "Effect": "Allow",
-                "Action": ["ec2:CreateTags"],
-                "Resource": ["*"],
-                "Condition": {"StringEquals": {"ec2:CreateAction": "RunInstances"}},
-            },
-        ],
-    }
-
-    try:
-        # Check if role already exists
-        try:
-            existing_role = iam.get_role(RoleName=role_name)
-            print(f"Role {role_name} already exists")
-            return existing_role["Role"]["Arn"]
-        except iam.exceptions.NoSuchEntityException:
-            # Role doesn't exist, create it
-            print(f"Creating role: {role_name}")
-            role = iam.create_role(
-                RoleName=role_name,
-                AssumeRolePolicyDocument=json.dumps(trust_policy),
-                Description="Minimal viable role for Lambda and Batch execution",
-            )
-
-            # Create the policy
-            print("Creating policy")
-            policy = iam.create_policy(
-                PolicyName=f"{role_name}",
-                PolicyDocument=json.dumps(permission_policy),
-            )
-
-            # Wait briefly for AWS to propagate the role
-            time.sleep(10)
-
-            # Attach the policy to the role
-            print("Attaching policy to role")
-            iam.attach_role_policy(
-                RoleName=role_name, PolicyArn=policy["Policy"]["Arn"]
-            )
-
-            return role["Role"]["Arn"]
-
-    except ClientError as e:
-        print(f"Error handling role: {str(e)}")
-        raise
-
-
-@log_output
 def create_batch_environment(
     function_name,
     repo_uri,
@@ -275,7 +84,7 @@ def create_batch_environment(
     # Create MVP role if not one provided
     role = config.get("Role")
     if not role:
-        role = create_minimal_batch_role(function_name)
+        role = create_batch_role(function_name, function_name, config.get("IamPolicy"))
     # Create Log Group if it doesn't exist
     log_group_name = function_name
 
@@ -399,7 +208,7 @@ def create_batch_environment(
             retryStrategy={"attempts": 1},
             propagateTags=True,
             containerProperties={
-                # "enableExecuteCommand": True,
+                "enableExecuteCommand": True,
                 "image": repo_uri,
                 "jobRoleArn": role,
                 "executionRoleArn": role,
@@ -444,7 +253,6 @@ def create_batch_environment(
     }
 
 
-@log_output
 def delete_batch_environment(name):
     batch_client = boto3.client("batch")
     logs_client = boto3.client("logs")

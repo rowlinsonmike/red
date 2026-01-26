@@ -1,20 +1,24 @@
-import typer
-from typing_extensions import Annotated
-from dataclasses import dataclass
-import boto3
 import json
-import sh
-from pathlib import Path
+import os
+import platform
+import shlex
 import sys
 import time
-import json
-from red.utility import print, load_config
-from red.content import INIT_FINISH, INIT_IMAGE_FINISH
-from red import ecr, docker, utility, content, iam, compute, schedule, batch
-import shlex
-import os
-from rich.progress import Progress, SpinnerColumn, TextColumn
+from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
+
+import boto3
+import questionary
+import rich
+import sh
+import typer
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from typing_extensions import Annotated
+
+from red import batch, constants, docker, ecr, logs, schedule, utility
+from red.infra import select_network_resources
+from red.utility import load_config, print
 
 selected_date = None
 
@@ -22,75 +26,88 @@ app = typer.Typer()
 
 
 @app.command("init")
-def run_init(
-    name: str = typer.Argument(None, help="name of project"),
-    batch: bool = typer.Option(False, "--batch", "-b", help="init a batch environment"),
-    code: bool = typer.Option(
-        False, "--code", "-c", help="init a serverless environment"
-    ),
-    image: str = typer.Option(
-        False,
-        "--image",
-        "-i",
-        help="init an existing repo for building and deploying an image to ECR. Specify the relative path of the Dockerfile.",
-    ),
-):
-    if image:
-        name = Path.cwd().name.replace(" ", "-")
-        env_content = {"Name": name, "Type": "Image", "DockerfilePath": image}
-        utility.create_file(".red", json.dumps(env_content, indent=2))
-        print(INIT_IMAGE_FINISH(name))
-        return
-    if not name:
-        print("Must use the --name option")
-    name = utility.slugify(name)
-    utility.create_folder(name)
-    os.chdir(name)
-    envs = (
-        content.BATCH_ENV_FILE
-        if batch
-        else content.CODE_ENV_FILE if code else content.ENV_FILE
-    )
-    env_content = {"Name": name, **envs}
+def run_init():
+    cwd = Path.cwd()
+    if (Path(cwd) / ".red").exists():
+        return print("RED already in project")
+    name = cwd.name.replace(" ", "-")
+    env_content = {
+        "Name": name,
+        "VPC": {"SubnetIds": [], "SecurityGroupIds": []},
+    }
+    env_content["Arch"] = platform.machine()
+    cpu = questionary.select(
+        "Select CPU Count",
+        choices=constants.SPECS.keys(),
+    ).ask()
+    memory = questionary.select(
+        "Memory Size (MB)",
+        choices=[str(x) for x in constants.SPECS.get(str(cpu))],
+    ).ask()
+    env_content["Cpu"] = cpu
+    env_content["MemorySize"] = memory
+
+    # timeout
+    def validate_timeout(entry):
+        try:
+            entry = int(entry)
+            if entry < 1:
+                return "Minimum value is 1"
+            if entry > 10000:
+                return "Maximum value is 20160"  # 1,209,600 secs,  max 14 days for fargate job
+        except:
+            return "Not a valid number"
+        return True
+
+    timeout = questionary.text(
+        "Maximum time in minutes your job can run?", validate=validate_timeout
+    ).ask()
+    env_content["Timeout"] = int(timeout) * 60
+    is_public = questionary.confirm(
+        "Is the environment public? If private, you must have a NAT Gateway for your private Batch environment to interact with the internet"
+    ).ask()
+    env_content["assignPublicIp"] = "ENABLED" if is_public else "DISABLED"
+    resources = select_network_resources()
+    env_content["VPC"]["SubnetIds"] = resources["subnets"]
+    env_content["VPC"]["SecurityGroupIds"] = resources["security_groups"]
+    env_content["IamPolicy"] = {
+        "Version": "2012-10-17",
+        "Statement": [
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "ssmmessages:CreateControlChannel",
+                    "ssmmessages:CreateDataChannel",
+                    "ssmmessages:OpenControlChannel",
+                    "ssmmessages:OpenDataChannel",
+                ],
+                "Resource": "*",
+            },
+            {
+                "Effect": "Allow",
+                "Action": [
+                    "ecr:GetAuthorizationToken",
+                    "ecr:BatchCheckLayerAvailability",
+                    "ecr:GetDownloadUrlForLayer",
+                    "ecr:BatchGetImage",
+                ],
+                "Resource": "*",
+            },
+        ],
+    }
     env_content = json.dumps(env_content, indent=2)
-    utility.create_file(".red", env_content)
-    if not code:
-        utility.create_file(
-            "Dockerfile",
-            content.BATCH_DOCKERFILE if batch else content.PYTHON_LAMBDA_DOCKERFILE,
-        )
-        if not batch:
-            utility.create_file("lambda_function.py", content.PYTHON_LAMBDA_FUNCTION)
-        else:
-            utility.create_file("main.py", content.BATCH_PYTHON)
+    if utility.file_exists("Dockerfile"):
+        utility.create_file(".red", env_content)
+        print("Dockerfile already exists.")
     else:
-        # serverless
-        utility.create_file("main.py", content.PYTHON_LAMBDA_FUNCTION)
-        utility.create_file("requirements.txt", "")
-    print(INIT_FINISH(name))
+        utility.create_file(".red", env_content)
+        utility.create_file("Dockerfile", constants.BATCH_DOCKERFILE)
+        utility.create_file("main.py", constants.BATCH_PYTHON)
+    print("🦊 RED project setup!")
 
 
 @app.command("deploy")
-def run_deploy(
-    skip_build: bool = typer.Option(
-        False,
-        "--skip-build",
-        "-sb",
-        help="skip build phase (only for container workloads)",
-    ),
-    skip_push: bool = typer.Option(
-        False,
-        "--skip-push",
-        "-sp",
-        help="skip push phase (only for container workloads)",
-    ),
-    no_infra: bool = typer.Option(
-        False,
-        "--no-infra",
-        "-ni",
-        help="only build and deploy image to ECR, will not deploy compute infra (only for container workloads)",
-    ),
-):
+def run_deploy():
     with Progress(
         SpinnerColumn(),
         TextColumn("[progress.description]{task.description}"),
@@ -99,54 +116,20 @@ def run_deploy(
         task = progress.add_task("[#ff4444]Deploying RED project...", total=None)
         config = load_config()
         name = config.get("Name")
-        # create ecr container if it doesn't exist and collect ecr arn
-        if config.get("Type") == "LambdaCode":
-            progress.update(
-                task, description=f"[#ff4444]Creating Serverless Lambda Environment"
-            )
-            role_arn = iam.create_lambda_role(name, name, config.get("IamPolicy"))
-            time.sleep(10)
-            config["RoleArn"] = role_arn
-            compute.create_serverless_function(name, config)
-        else:
-            repo_uri = ecr.create_ecr(name)
-            account_ecr = repo_uri.split("/")[0]
-            # build and ship image to ecr
-            if not skip_build:
-                progress.update(task, description=f"[#ff4444]Pushing to ECR")
-                docker.push_to_ecr(repo_uri, account_ecr, skip_push, config)
-            if no_infra or config.get("Type").lower() == "image":
-                return
-            if skip_push:
-                return
-            if config.get("Type") == "Batch":
-                progress.update(
-                    task, description=f"[#ff4444]Creating Batch Environment"
-                )
-                batch.create_batch_environment(name, repo_uri, config)
-            else:
-                progress.update(
-                    task, description=f"[#ff4444]Creating Lambda Environment"
-                )
-                # create  / update iam role
-                role_arn = iam.create_lambda_role(name, name, config.get("IamPolicy"))
-                time.sleep(10)
-                config["RoleArn"] = role_arn
-                compute.create_function(name, repo_uri, config)
+        progress.update(task, description="[#ff4444]Confirming ECR")
+        repo_uri = ecr.create_ecr(name)
+        account_ecr = repo_uri.split("/")[0]
+        progress.update(task, description="[#ff4444]Pushing to ECR")
+        docker.push_to_ecr(repo_uri, account_ecr, config, quiet=True)
+        progress.update(task, description=f"[#ff4444]Creating Batch Environment")
+        batch.create_batch_environment(name, repo_uri, config)
     print("RED project deployed")
 
 
 @app.command("run")
 def run_execute(
     payload: str = typer.Option("{}", "--payload", "-p", help="optional payload"),
-    cron: str = typer.Option("", "--cron", "-c", help="optional schedule cron job"),
-    cron_name: str = typer.Option("", "--schedule_name", "-sn", help="schedule name"),
-    once: str = typer.Option(
-        "", "--once", "-o", help="one time one, yyyy-mm-ddThh:mm:ss"
-    ),
-    detached: bool = typer.Option(
-        False, "--detached", "-d", help="execute in async mode"
-    ),
+    cron: bool = typer.Option(False, "--cron", "-c", help="optional schedule cron job"),
 ):
     config = load_config()
     name = config.get("Name")
@@ -158,55 +141,83 @@ def run_execute(
         except json.JSONDecodeError:
             raise typer.BadParameter("Invalid JSON input")
     payload = json_data
-    compute_type = config.get("Type")
-    if cron or once:
-        if not cron_name:
-            print("Must specify --schedule_name")
-            return
-        cron_name = utility.slugify(cron_name)
-        schedule.schedule_lambda_compute(
-            name, cron_name, payload, cron, once, compute_type, config
-        )
+    if cron:
+        schedule_name = questionary.text("Schedule Name").ask()
+        cron_exp = questionary.text("AWS cron expression.").ask()
+        is_once = questionary.confirm("One time run?").ask()
+        cron_name = utility.slugify(schedule_name)
+        schedule.schedule_compute(name, cron_name, payload, cron_exp, is_once, config)
         print("RED project schedule created")
     else:
-        if compute_type == "Batch":
-            envs = batch.get_job_definition_environment_variables(name)
-            envs = [{"name": x.get("Name"), "value": x.get("Value")} for x in envs]
-            envs.extend([{"name": k, "value": v} for k, v in payload.items()])
-            batch.submit_batch_job(f"{name}_execution", name, name, environment=envs)
-            print("RED project batch job submitted")
-            return
-        compute.execute_and_tail_lambda(name, payload, detached)
+        envs = batch.get_job_definition_environment_variables(name)
+        envs = [{"name": x.get("Name"), "value": x.get("Value")} for x in envs]
+        envs.extend([{"name": k, "value": v} for k, v in payload.items()])
+        batch.submit_batch_job(f"{name}_execution", name, name, environment=envs)
+        print("RED project batch job submitted")
+        return
 
 
-@app.command("pull")
-def run_pull(
-    repo_uri: str = typer.Argument(
-        ...,
-        help='ECR repo uri (e.g. "ECR image URI, .e.g 123456789012.dkr.ecr.us-east-1.amazonaws.com/myimage:latest")',
-    ),
-):
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        transient=True,
-    ) as progress:
-        task = progress.add_task("[#ff4444]Pulling ECR Image...", total=None)
-        account_ecr = repo_uri.split("/")[0]
-        docker.pull_from_ecr(repo_uri, account_ecr)
-        print("Pulled ECR Image!")
+# @app.command("pull")
+# def run_pull(
+#     repo_uri: str = typer.Argument(
+#         ...,
+#         help='ECR repo uri (e.g. "ECR image URI, .e.g 123456789012.dkr.ecr.us-east-1.amazonaws.com/myimage:latest")',
+#     ),
+# ):
+#     with Progress(
+#         SpinnerColumn(),
+#         TextColumn("[progress.description]{task.description}"),
+#         transient=True,
+#     ) as progress:
+#         task = progress.add_task("[#ff4444]Pulling ECR Image...", total=None)
+#         account_ecr = repo_uri.split("/")[0]
+#         docker.pull_from_ecr(repo_uri, account_ecr)
+#         print("Pulled ECR Image!")
 
 
 @app.command()
-def sched(log: str = typer.Option("", "--log", "-l", help="log stream to view")):
+def cron(
+    delete: bool = typer.Option(
+        False, "--delete", "-d", help="delete selected cron jobs"
+    ),
+):
     config = load_config()
     name = config.get("Name")
-    schedule.list_schedules(name)
+    schedules, data = schedule.list_schedules(name)
+    if not len(schedules):
+        return print("No schedules")
+    if delete:
+        selected_schedules = questionary.checkbox(
+            "Select Schedules to delete:",
+            choices=schedules,
+            instruction="(Select at least 1)",
+        ).ask()
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True,
+        ) as progress:
+            task = progress.add_task(
+                "[#ff4444]Deleting selected RED schedules...", total=None
+            )
+            for x in selected_schedules:
+                schedule_name = data[int(x.split(".")[0]) - 1].get("Name")
+                progress.update(task, description=f"[#ff4444]Deleting Schedule")
+                schedule.delete_schedule(schedule_name, name)
+
+    else:
+        selected = questionary.select(
+            "Select Schedule to View",
+            choices=schedules,
+        ).ask()
+        schedule_name = data[int(selected.split(".")[0]) - 1].get("Name")
+        response = schedule.get_schedule(schedule_name, name)
+        print(response)
 
 
 @app.command("kill")
 def run_kill(
-    schedule_name: str = typer.Option("", "--schedule", "-s", help="schedule name")
+    schedule_name: str = typer.Option("", "--schedule", "-s", help="schedule name"),
 ):
     with Progress(
         SpinnerColumn(),
@@ -226,23 +237,11 @@ def run_kill(
         schedule.delete_schedule_group(name)
         progress.update(task, advance=50)
         progress.update(task, description=f"[#ff4444]Deleting compute environment")
-        if config.get("Type") == "Batch":
-            batch.delete_batch_environment(name)
-            return
-        compute.delete_resources(name, config.get("Type"))
+        batch.delete_batch_environment(name)
+        progress.update(task, description=f"[#ff4444]Deleting ECR repo")
+        ecr.delete_ecr_repo(name)
+
         print("Deleted RED project")
-
-
-def select_option(text, options):
-    while True:
-        choice = typer.prompt(
-            text,
-            type=int,
-            show_default=False,
-        )
-        if 1 <= choice <= len(options):
-            return options[choice - 1]
-        print("Invalid option. Please try again.")
 
 
 @app.command()
@@ -250,10 +249,9 @@ def log(latest: bool = typer.Option(False, "--latest", "-l", help="get latest lo
     config = load_config()
     name = config.get("Name")
     if latest:
-        return compute.get_log(name, "_latest", config.get("Type"))
-    logs = compute.list_logs(name, config.get("Type"))
-    log = select_option("Select a log number", logs)
-    compute.get_log(name, log.get("logStreamName"), config.get("Type"))
+        return logs.get_log(name, "_latest")
+    log = logs.list_logs(name)
+    logs.get_log(name, log.get("logStreamName"))
 
 
 @app.callback(invoke_without_command=True)

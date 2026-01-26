@@ -1,12 +1,20 @@
-<h1 align="center">
+<h1 style="margin:0" align="center">
   <br>
-  <img src="docs/image.jpg" alt="logo" width="300" height="300" style="border-radius: 50%; width: 300px; height: 300px; object-fit: cover;"/>
+  <img src="image.jpg" alt="logo" width="400" style="border-radius: 50%; object-fit: cover; width: 400px; height: 400px;">
+
   <br>
- RED
+  RED
   <br>
 </h1>
 
-<h4 align="center">Effortless container deployments to AWS.</h4>
+<h5 style="margin:0;color:grey;letter-spacing:2px;" align="center">(Really Easy Deployments)
+</h5>
+
+<div align="center">
+<p style="max-width:700px;" align="center">
+    RED is a CLI tool that simplifies deploying containerized applications to AWS. It automates the setup and management of Docker containers, ECR repositories, and AWS Batch compute environments with minimal configuration.</p>
+</div>
+
 
 <p align="center">
   <a href="https://rowlinsonmike.github.io/red/">Check out the Docs</a>

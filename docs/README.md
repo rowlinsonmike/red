@@ -9,568 +9,204 @@
 
 <h5 style="margin:0;color:grey;letter-spacing:2px;" align="center">(Really Easy Deployments)
 </h5>
-<h4 align="center">Effortless deployments for your python workloads to AWS
-</h4>
+
 
 <div align="center">
-<p style="max-width:500px;" align="center">
-Deploying workloads to AWS is overly complex and the tooling ecosystem out there is whack. Write code and send it. Period.
-</p>
+<p style="max-width:700px;" align="center">
+    RED is a CLI tool that simplifies deploying containerized applications to AWS. It automates the setup and management of Docker containers, ECR repositories, and AWS Batch compute environments with minimal configuration.</p>
 </div>
 
-# Features
 
-- 🦄 One command deploys
-- 🎨 Customization
-- ⏱️ Execution and Scheduling
 
-# Installation
 
-> ## Prerequisties
->
-> - ☁️ AWS credentials configured
-> - 🐳 Docker CLI
+## What RED Does
 
-```bash
-pip install https://github.com/rowlinsonmike/red/raw/refs/heads/main/dist/red-1.5.0.tar.gz
-```
+RED streamlines the process of:
+- **Initializing** a project with AWS infrastructure configuration
+- **Deploying** Docker containers to AWS ECR and Batch environments
+- **Running** batch jobs with optional payloads
+- **Scheduling** recurring jobs with cron expressions
+- **Managing** scheduled jobs (view, delete, update)
+- **Viewing** job logs
 
-# Lambda Serverless Tutorial
-
-In this tutorial, we’ll assume that `red` is already installed on your system. If that’s not the case, see [Installation](#installation).
-
-We are going to deploy a container to Lambda that gets the latest posts from Reddit's frontpage using the RSS feed.
-
-This tutorial will walk you through these tasks:
-
-1. [Create a new RED project](#creating-a-new-project)
-2. [Create serverless code to extract data from RSS feeds](#create-code)
-3. [Deploy to AWS](#deployment)
-4. [Run and review output](#execute)
-
-## Dependencies
-
-Make sure to install any depedencies in your project root -
-`pip install --target . requests`
-
-## Creating a new project
-
-Set up a new `red` project. Enter a directory where you’d like to store your code and run:
+## Installation
 
 ```bash
-red init -c "reddit_rss"
+pip install red
 ```
 
-> the `-c` denoted serverless code
+## Requirements
 
-This will create a reddit_rss directory with the following contents:
+- AWS credentials configured locally
+- Docker installed
+- Python 3.12+
+- Mac OS
 
+## Use Cases
+
+- **Batch Processing**: Run long-running data processing jobs without managing infrastructure
+- **Scheduled Tasks**: Automate recurring jobs with cron scheduling
+- **Containerized Workloads**: Deploy any containerized application to AWS
+- **Serverless Batch**: Leverage AWS Batch for cost-effective, scalable job execution
+
+# Roadmap
+
+- enter session for actively running Job
+  - install ssm cli (mac focused)
+  - execute commands to running Job
+- wait for job to complete and spit out log automatically (tail)
+
+
+## Workflow Example
+
+```bash
+# 1. Initialize project
+red init
+
+# 2. Deploy to AWS
+red deploy
+
+# 3. Run a job
+red run --payload '{"data": "process_me"}'
+
+# 4. Schedule recurring job
+red run --cron
+
+# 5. View logs
+red log --latest
+
+# 6. Manage schedules
+red cron
+red cron --delete
+
+# 7. Clean up
+red kill
 ```
-.
-└── rss_feed/
-    ├── .red                 # red configuration file
-    ├── main.py              # python lambda handler
+
+## Commands
+
+### `red init`
+
+Initialize a RED project in your current directory.
+
+**Interactive Setup:**
+- Project name (auto-derived from directory name)
+- CPU count selection
+- Memory size (MB)
+- Maximum job timeout (in minutes, 1-20160)
+- Public/Private environment choice
+- VPC subnet and security group selection
+
+**Creates:**
+- `.red` configuration file
+- `Dockerfile` template
+- `main.py` template
+
+```bash
+red init
 ```
 
-## Create Code
+### `red deploy`
 
-Update your code for `rss_feed/main.py`:
-
-```python
-import feedparser
-
-def handler(event, context):
-    # Parse the Reddit front page RSS feed
-    feed = feedparser.parse('https://www.reddit.com/.rss')
-
-    # Print the titles and links of the posts
-    for entry in feed.entries:
-        print(f"Title: {entry.title}")
-        print(f"Link: {entry.link}")
-```
-
-Make sure to install the feedparser dependency, `pip install --target . feedparser`
-
-## Deployment
-
-Now let's deploy our serverless code, go to the top level of the `rss_feed` directory and run:
+Deploy your project to AWS. Builds and pushes Docker image to ECR, then creates/updates the Batch compute environment.
 
 ```bash
 red deploy
 ```
 
-This command creates the Lambda function and supporting resources needed to run your code. You will get an output similar to this in your `red.log`:
+### `red run`
 
-```
-... (omitted for brevity)
-Created IAM role: arn:aws:iam::123456789012:role/reddit_rss
-Attached AWSLambdaBasicExecutionRole policy to reddit_rss
-Creating Lambda function
-Waiting for Lambda function to be active...
-Lambda function created: arn:aws:lambda:us-east-1:123456789012:function:reddit_rss
-```
+Execute a batch job immediately or schedule it for recurring execution.
 
-## Execute
+**Options:**
+- `--payload, -p`: JSON payload to pass to the job (default: `{}`)
+- `--cron, -c`: Schedule as recurring cron job instead of immediate execution
 
-Now let's put our container to work, go to the top level of the `rss_feed` directory and run:
+**Examples:**
 
+Immediate execution:
 ```bash
 red run
+red run --payload '{"key": "value"}'
 ```
 
-This command executes our AWS Lambda function in `RequestResponse` mode, waits for it to complete, and shows the tailing 4kb of the Cloudwatch log stream. You will get an output similar to this:
-
-```
-... (omitted for brevity)
-Title: Steam is the only software/company I use that hasn't enshitified and gotten worse over time.
-Link: https://www.reddit.com/r/pcmasterrace/comments/1fpuu14/steam_is_the_only_softwarecompany_i_use_that/
-END RequestId: a2f8ed44-d788-433b-b132-5e4a366ff0ab
-REPORT RequestId: a2f8ed44-d788-433b-b132-5e4a366ff0ab  Duration: 1770.21 ms    Billed Duration: 3057 ms        Memory Size: 128 MB
-Max Memory Used: 49 MB  Init Duration: 1285.86 ms
-```
-
-This tutorial covered the basics of RED, but there’s a lot not mentioned here. Check the [Basic Concepts](#basic-concepts) section to learn how to use other features. The [Customization](#customization) section outlines all the current options you have for your deployment.
-
-# Lambda Container Tutorial
-
-In this tutorial, we’ll assume that `red` is already installed on your system. If that’s not the case, see [Installation](#installation).
-
-We are going to deploy a container to Lambda that gets the latest posts from Reddit's frontpage using the RSS feed.
-
-This tutorial will walk you through these tasks:
-
-1. [Create a new RED project](#creating-a-new-project)
-2. [Create a container to extract data from RSS feeds](#create-a-container)
-3. [Deploy the container to AWS](#deployment)
-4. [Run the container and review output](#execute)
-
-## Creating a new project
-
-> if you are on a windows box, you'll need to change the [architecture type](#architectures) in `.red` config file
-
-Before you start deploying and executing containers, you will have to set up a new `red` project. Enter a directory where you’d like to store your code and run:
-
+Schedule a recurring job:
 ```bash
-red init "reddit_rss"
+red run --cron
+# Then provide:
+# - Schedule name
+# - AWS cron expression (e.g., "cron(0 12 * * ? *)" for daily at noon)
+# - One-time run confirmation
 ```
 
-This will create a reddit_rss directory with the following contents:
+### `red cron`
 
-```
-.
-└── rss_feed/
-    ├── .red                 # red configuration file
-    ├── lambda_handler.py    # python lambda handler
-    └── Dockerfile           # container definition
-```
+Manage scheduled jobs.
 
-## Create a container
+**Options:**
+- `--delete, -d`: Delete selected cron jobs
 
-This is the updated code for `rss_feed/Dockerfile`:
+**Examples:**
 
-```
-# Define custom function directory
-ARG FUNCTION_DIR="/function"
-
-FROM python:3.12 as build-image
-
-# Include global arg in this stage of the build
-ARG FUNCTION_DIR
-
-# Copy function code
-RUN mkdir -p ${FUNCTION_DIR}
-COPY . ${FUNCTION_DIR}
-
-# Install the function's dependencies
-RUN pip install     --target ${FUNCTION_DIR}         awslambdaric
-RUN pip install     --target ${FUNCTION_DIR}         feedparser
-
-# Use a slim version of the base Python image to reduce the final image size
-FROM python:3.12-slim
-
-# Include global arg in this stage of the build
-ARG FUNCTION_DIR
-# Set working directory to function root directory
-WORKDIR ${FUNCTION_DIR}
-
-# Copy in the built dependencies
-COPY --from=build-image ${FUNCTION_DIR} ${FUNCTION_DIR}
-
-# Set runtime interface client as default command for the container runtime
-ENTRYPOINT [ "/usr/local/bin/python", "-m", "awslambdaric" ]
-# Pass the name of the function handler as an argument to the runtime
-CMD [ "lambda_function.handler" ]
-
-```
-
-This is the updated code for `rss_feed/lambda_handler.py`:
-
-```python
-import feedparser
-
-def handler(event, context):
-    # Parse the Reddit front page RSS feed
-    feed = feedparser.parse('https://www.reddit.com/.rss')
-
-    # Print the titles and links of the posts
-    for entry in feed.entries:
-        print(f"Title: {entry.title}")
-        print(f"Link: {entry.link}")
-```
-
-## Deployment
-
-Now let's deploy our container, go to the top level of the `rss_feed` directory and run:
-
+View all schedules:
 ```bash
-red deploy
+red cron
 ```
 
-This command creates the ECR repo, Lambda function, and supporting resources needed to run your container. It uses the Docker CLI to build your container locally and deploy to ECR. You will get an output similar to this:
-
-```
-... (omitted for brevity)
-Successfully pushed docker image to ECR!
-Created IAM role: arn:aws:iam::123456789012:role/reddit_rss
-Attached AWSLambdaBasicExecutionRole policy to reddit_rss
-Creating Lambda function
-Waiting for Lambda function to be active...
-Lambda function created: arn:aws:lambda:us-east-1:123456789012:function:reddit_rss
-```
-
-## Execute
-
-Now let's put our container to work, go to the top level of the `rss_feed` directory and run:
-
+Delete schedules:
 ```bash
-red run
+red cron --delete
+# Select schedules to delete from interactive menu
 ```
 
-This command executes our AWS Lambda function in `RequestResponse` mode, waits for it to complete, and shows the tailing 4kb of the Cloudwatch log stream. You will get an output similar to this:
+### `red kill`
 
-```
-... (omitted for brevity)
-Title: Steam is the only software/company I use that hasn't enshitified and gotten worse over time.
-Link: https://www.reddit.com/r/pcmasterrace/comments/1fpuu14/steam_is_the_only_softwarecompany_i_use_that/
-END RequestId: a2f8ed44-d788-433b-b132-5e4a366ff0ab
-REPORT RequestId: a2f8ed44-d788-433b-b132-5e4a366ff0ab  Duration: 1770.21 ms    Billed Duration: 3057 ms        Memory Size: 128 MB
-Max Memory Used: 49 MB  Init Duration: 1285.86 ms
-```
+Delete the entire RED project or a specific schedule.
 
-This tutorial covered the basics of RED, but there’s a lot not mentioned here. Check the [Basic Concepts](#basic-concepts) section to learn how to use other features. The [Customization](#customization) section outlines all the current options you have for your deployment.
+**Options:**
+- `--schedule, -s`: Delete a specific schedule by name (optional)
 
-# Batch Tutorial
+**Examples:**
 
-In this tutorial, we’ll assume that `red` is already installed on your system. If that’s not the case, see [Installation](#installation).
-
-We are going to deploy a container to Batch that gets the latest posts from Reddit's frontpage using the RSS feed.
-
-This tutorial will walk you through these tasks:
-
-1. [Create a new RED project](#creating-a-new-project)
-2. [Update config file](#modify-config-file)
-3. [Create a container to extract data from RSS feeds](#create-a-container)
-4. [Deploy the container to AWS](#deployment)
-5. [Run the container and review output](#execute)
-
-## Creating a new project
-
-> if you are on a windows box, you'll need to change the [architecture type](#architectures) in `.red` config file
-
-Before you start deploying and executing containers, you will have to set up a new `red` project. Enter a directory where you’d like to store your code and run:
-
-```bash
-red init "reddit_rss"
-```
-
-This will create a reddit_rss directory with the following contents:
-
-```
-.
-└── rss_feed/
-    ├── .red                 # red configuration file
-    ├── main.py              # python handler
-    └── Dockerfile           # container definition
-```
-
-We'll replace `lambda_handler.py` with a `main.py` file below.
-
-## Modify config file
-
-We need to upate the `.red` config file to tell `RED` how to deploy our Batch environment -
-
-```json
-{
-  "Name": "reddit_rss",
-  "Type": "Batch",
-  "Timeout": 10000,
-  "Cpu": 1,
-  "MemorySize": 2048,
-  "VPC": {
-    "SubnetIds": ["subnet-123456789012", "123456789013"],
-    "SecurityGroupIds": ["sg-123456789012"]
-  },
-  "assignPublicIp": "ENABLED",
-  "Arch": "arm64"
-}
-```
-
-## Create a container
-
-This is the updated code for `rss_feed/Dockerfile`:
-
-```
-FROM python:3.13
-WORKDIR /app
-RUN pip install feedparser
-COPY . .
-ENTRYPOINT [ "python", "main.py" ]
-```
-
-Then let's create `rss_feed/main.py` with this content:
-
-```python
-import feedparser
-
-def main():
-    # Parse the Reddit front page RSS feed
-    feed = feedparser.parse('https://www.reddit.com/.rss')
-
-    # Print the titles and links of the posts
-    for entry in feed.entries:
-        print(f"Title: {entry.title}")
-        print(f"Link: {entry.link}")
-
-
-main()
-```
-
-## Deployment
-
-Now let's deploy our container, go to the top level of the `rss_feed` directory and run:
-
-```bash
-red deploy
-```
-
-This command creates the ECR repo, Batch environment, and supporting resources needed to run your container. It uses the Docker CLI to build your container locally and deploy to ECR.
-
-## Execute
-
-Now let's put our container to work, go to the top level of the `rss_feed` directory and run:
-
-```bash
-red run
-```
-
-This command executes a job on our Batch environment. This will always be a detached execution. To view the log once the job has finished,
-
-First run red stat to get the log you want to look at, then use the `-l` option to get the content within the log
-
-```bash
-red stat
-red stat -l 'reddit_rss/default/1234123412341234'
-```
-
-```
-... (omitted for brevity)
-Title: Steam is the only software/company I use that hasn't enshitified and gotten worse over time.
-Link: https://www.reddit.com/r/pcmasterrace/comments/1fpuu14/steam_is_the_only_softwarecompany_i_use_that/
-END RequestId: a2f8ed44-d788-433b-b132-5e4a366ff0ab
-REPORT RequestId: a2f8ed44-d788-433b-b132-5e4a366ff0ab  Duration: 1770.21 ms    Billed Duration: 3057 ms        Memory Size: 128 MB
-Max Memory Used: 49 MB  Init Duration: 1285.86 ms
-```
-
-This tutorial covered the basics of RED, but there’s a lot not mentioned here. Check the [Basic Concepts](#basic-concepts) section to learn how to use other features. The [Customization](#customization) section outlines all the current options you have for your deployment.
-
-# Bring your own container Tutorial
-
-You might have your own docker image you want to build and send to ECR. At the root of the existing repo run `red init -i path/to/Dockerfile`.
-
-By default the ECR repo will have the same name as the project your in. If you want to change that update the `Name` property in the `.red` config.
-
-Whenever your ready to send it run `red deploy`
-
-# Pull an image from an ECR repo
-
-If you have an image you'd like to pull down from ECR you can run
-
-`red pull <reponame:version>`
-
-# Basic Concepts
-
-## Compute Type
-
-`red` supports both Lambda and Batch for runtime environments. There is variance in the `.red` file between the two, but the commands to interact with them are the same.
-
-## Deployment Options
-
-### Everything
-
-To build/deploy image and compute infra, use this command:
-
-```bash
-red deploy
-```
-
-### Locally build container
-
-If you just want to build your docker container locally for testing use this command:
-
-```bash
-red deploy -sp
-```
-
-### ECR Image Only
-
-If you just want to build/deploy to an ECR repo:
-
-```bash
-red deploy -ni
-```
-
-### Update Compute Infra Only
-
-If you just want to update compute infra and not the image, use this command:
-
-```bash
-red deploy -sb
-```
-
-## Running Containers
-
-### Run a container
-
-```bash
-red run
-```
-
-### Async execution
-
-You can use the `--detached/-d` option to run your container asynchronously and not wait for a log stream.
-
-```bash
-red run -d
-```
-
-### Passing a Payload
-
-You can provide your container a JSON payload with the `--payload/-p` command.
-
-```bash
-red run -p '{"x":"hello world","y":[1,2,3]}'
-```
-
-### Scheduling
-
-#### Create a Schedule
-
-> Scheduling uses EventBridge Scheduler and your device timezone to create schedules.
-> You can schedule your executions with the `--cron/-c` and `--schedule_name/-sn` options. For example if I wanted to run my container at midnight on the 25th of each month, I could run:
-
-```bash
-red run -c '0 0 25 * ? *' -sn 'my_schedule'
-```
-
-#### List Schedules
-
-In order to see all of your schedules run the following:
-
-```bash
-red stat
-```
-
-You will get an output like this:
-
-```
-              Schedules
-┏━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━┓
-┃ Name        ┃ Creation Date       ┃
-┡━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━┩
-│ my_schedule │ 2024-09-25 12:55:54 │
-└─────────────┴─────────────────────┘
-... (omitted for brevity)
-```
-
-#### One Time Execution
-
-You can make a schedule run only once with `--once/-o`. The syntax for the schedule is `yyyy-mm-ddThh:mm:ss`
-
-```bash
-red run -sn 'my_schedule' -o '2025-04-05T20:35'
-```
-
-#### Delete a Schedule
-
-You can delete a schedule by using the `--schedule/-s` option with the `kill` command
-
-```bash
-red kill -s <schedule_name>
-```
-
-### Review logs
-
-In order to see the latest log streams run the following:
-
-```bash
-red stat
-```
-
-You will get an output like this:
-
-```
-... (omitted for brevity)
-                                   Latest Logs
-┏━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━┓
-┃ Log Stream Name                                      ┃ Creation Date           ┃
-┡━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━┩
-│ 2024/09/27/[$LATEST]f3a70d9f3eda45718ae0000000000000 │ 2024-09-27 00:16:11 UTC │
-└──────────────────────────────────────────────────────┴─────────────────────────┘
-```
-
-Copy a log stream name and run:
-
-```bash
-red stat -l '2024/09/27/[\$LATEST]f3a70d9f3eda45718ae0000000000000'
-```
-
-That will return the log stream events. You will get an output like this:
-
-```
-... (omitted for brevity)
-REPORT RequestId: a2f8ed44-d788-433b-b132-500000000  Duration: 1770.21 ms    Billed Duration: 3057 ms        Memory Size: 128 MB
-Max Memory Used: 49 MB  Init Duration: 1285.86 ms
-```
-
-## Terminate deployment
-
-You can easily remove all resources deployed by your RED project -
-
+Delete entire project (ECR repo, Batch environment, all schedules):
 ```bash
 red kill
 ```
 
-## Deploy
-
-### Skip build phase
-
-You can have `red` just deploy and update AWS resources and not build and push a new image by running:
-
+Delete a specific schedule:
 ```bash
-red deploy -sb
+red kill --schedule "my-schedule-name"
 ```
 
-This is useful for when you have configuration changes in your `.red` file.
+### `red log`
 
-### Skip push phase
+View job logs.
 
-You can have `red` just build your container locally without deploying and updating AWS resources by running:
+**Options:**
+- `--latest, -l`: Get the latest log (default: interactive selection)
 
+**Examples:**
+
+View latest log:
 ```bash
-red deploy -sp
+red log --latest
 ```
 
-This is useful for when you want to test your image locally before deploying.
+Select and view a specific log:
+```bash
+red log
+```
+
+## Configuration
+
+RED stores configuration in a `.red` file created during `red init`. This includes:
+- Project name
+- CPU and memory specifications
+- Job timeout
+- VPC and security group settings
+- IAM policies for AWS access
+
+
 
 # Customization
 
@@ -582,8 +218,6 @@ The following configurations are supported in the `.red` json file.
 <pre>
 {
   "Name": <a href="##name">...</a> (REQUIRED),
-  "DockerfilePath": <a href="##dockerfile-path">...</a> (*OPTIONAL),
-  "Type": <a href="##type">...</a> (REQUIRED),
   "Timeout": <a href="##timeout">300</a> (REQUIRED),
   "MemorySize": <a href="##memory-size">128</a> (REQUIRED),
   "Cpu": <a href="##cpu">1</a> (*REQUIRED),
@@ -591,42 +225,18 @@ The following configurations are supported in the `.red` json file.
   "Env": <a href="##environment-variables">{...}</a> (OPTIONAL),
   "Vpc": <a href="##vpc">{...}</a> (*OPTIONAL),
   "Arch": <a href="##architectures">x86_64</a> (OPTIONAL),
-  "Runtime": <a href="##lambda-runtime">{...}</a> (*OPTIONAL),
-  "Handler": <a href="##handler">{...}</a> (*OPTIONAL),
 }
 </pre>
 </div>
 
 ## Name
 
-> (BATCH | LAMBDA | LAMBDACODE | IMAGE)
->
 > The name shouldn't contain special characters or spaces
 
 The name used to create all the required resources.
 
-## Dockerfile Path
-
-> (IMAGE)
->
-> This is only required for image only deployments specified with `red init -i`
-
-The relative path is used as the location of the Dockerfile when building the image.
-
-## Type
-
-> (BATCH | LAMBDA | LAMBDACODE | IMAGE)
-
-The type determines what type of deployment will happen
-
-1. Lambda
-2. Batch
-3. LambdaCode
-4. Image
 
 ## Timeout
-
-> (BATCH | LAMBDA | LAMBDACODE)
 
 The maximum time in seconds that the container can run before it is stopped.
 
@@ -636,15 +246,11 @@ The maximum time in seconds that the container can run before it is stopped.
 
 ## CPU
 
-> (BATCH)
-
 Configue vCPU allotment
 
 Available Options - Reference
 
 ## Memory Size
-
-> (BATCH | LAMBDA | LAMBDACODE)
 
 The amount of memory available to the container at runtime. Increasing the memory also increases its CPU allocation. The default value is `128 MB`. The value can be any multiple of `1 MB`.
 
@@ -653,8 +259,6 @@ The amount of memory available to the container at runtime. Increasing the memor
 > Maximum: 10240
 
 ## Iam Policy
-
-> (BATCH | LAMBDA | LAMBDACODE)
 
 This provides your executions with custom permissions via an IAM policy.
 
@@ -673,8 +277,6 @@ This provides your executions with custom permissions via an IAM policy.
 
 ## Environment Variables
 
-> (BATCH | LAMBDA | LAMBDACODE)
-
 You can specify environment variables as key value pairs.
 
 ```json
@@ -685,8 +287,6 @@ You can specify environment variables as key value pairs.
 
 ## VPC
 
-> (BATCH | LAMBDA | LAMBDACODE)
->
 > You must run `kill` command and redeploy if this configuration is updated. Make sure the subnets being deployed into have internet access (nat gateway or igw). If you are using the batch environment you **MUST** specify VPC settings.
 
 ```json
@@ -717,8 +317,6 @@ Make sure to provide an `IamPolicy` in the configuration with permissions simila
 
 ## Architectures
 
-> (BATCH | LAMBDA)
-
 If you're building on a Mac with Apple Silicon, ensure you specify `arm64`. The default is `x86_64`. Available options are:
 
 ```json
@@ -727,51 +325,10 @@ If you're building on a Mac with Apple Silicon, ensure you specify `arm64`. The 
 
 ## Public Ip
 
-> (BATCH)
-
 Assign a public IP to container
 
 Available Options
 
 ```json
 ["ENABLED", "DISABLED"]
-```
-
-## Lambda Runtime
-
-> (LAMBDACODE)
-
-Select lambda runtime
-
-Available Options [here](https://docs.aws.amazon.com/lambda/latest/dg/lambda-runtimes.html)
-
-## Handler
-
-> (LAMBDACODE)
-
-Specifcy the handler function Lambda will use. Default is `main.handler`
-
-Learn about handler options [here](https://docs.aws.amazon.com/lambda/latest/dg/getting-started.html)
-
-## Batch
-
-Example setup
-
-```json
-{
-  "Name": "myproject",
-  "Type": "Batch",
-  "Timeout": 10000,
-  "Cpu": 1,
-  "MemorySize": 2048,
-  "VPC": {
-    "SubnetIds": ["subnet-000", "subnet-000"],
-    "SecurityGroupIds": ["sg-000"]
-  },
-  "assignPublicIp": "ENABLED",
-  "Arch": "arm64",
-  "Env": {
-    "myvar": "injected var"
-  }
-}
 ```

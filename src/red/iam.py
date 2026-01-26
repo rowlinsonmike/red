@@ -1,14 +1,11 @@
-import boto3
 import json
-from botocore.exceptions import ClientError
-from red.utility import print, log_output
 
 import boto3
-import json
 from botocore.exceptions import ClientError
 
+from red.utility import print
 
-@log_output
+
 def create_role(
     role_name,
     trust_policy,
@@ -68,9 +65,9 @@ def create_role(
             print(f"Created custom policy: {custom_policy_arn}")
         except iam.exceptions.EntityAlreadyExistsException:
             # Policy exists, let's update it
-            print(
-                f"Custom policy {custom_policy_name} already exists. Updating policy."
-            )
+            # print(
+            #     f"Custom policy {custom_policy_name} already exists. Updating policy."
+            # )
             policies = iam.list_policies(Scope="Local", PathPrefix="/")["Policies"]
             custom_policy = next(
                 (p for p in policies if p["PolicyName"] == custom_policy_name), None
@@ -93,23 +90,24 @@ def create_role(
                             PolicyArn=custom_policy_arn,
                             VersionId=version["VersionId"],
                         )
-                        print(
-                            f"Deleted version of custom policy: {version['VersionId']}"
-                        )
+                        # print(
+                        #     f"Deleted version of custom policy: {version['VersionId']}"
+                        # )
                 # Create a new version of the policy
                 iam.create_policy_version(
                     PolicyArn=custom_policy_arn,
                     PolicyDocument=json.dumps(custom_policy_document),
                     SetAsDefault=True,
                 )
-                print(f"Updated custom policy: {custom_policy_arn}")
+                # print(f"Updated custom policy: {custom_policy_arn}")
         # Attach the custom policy to the role if not already attached
         if custom_policy_arn:
             if not any(p["PolicyArn"] == custom_policy_arn for p in attached_policies):
                 iam.attach_role_policy(RoleName=role_name, PolicyArn=custom_policy_arn)
                 print(f"Attached custom policy to {role_name}")
             else:
-                print(f"Custom policy already attached to {role_name}")
+                ...
+                # print(f"Custom policy already attached to {role_name}")
         else:
             print("Failed to create or find custom policy")
 
@@ -120,8 +118,7 @@ def create_role(
         return None
 
 
-@log_output
-def create_lambda_role(role_name, custom_policy_name, custom_policy_document):
+def create_batch_role(role_name, custom_policy_name, custom_policy_document):
     """
     Create an IAM role for a Lambda function with a custom policy.
     If resources already exist, it will use them instead of creating new ones.
@@ -137,15 +134,19 @@ def create_lambda_role(role_name, custom_policy_name, custom_policy_document):
         "Statement": [
             {
                 "Effect": "Allow",
-                "Principal": {"Service": "lambda.amazonaws.com"},
+                "Principal": {
+                    "Service": [
+                        "ecs.amazonaws.com",
+                        "ecs-tasks.amazonaws.com",
+                        "batch.amazonaws.com",
+                    ]
+                },
                 "Action": "sts:AssumeRole",
             }
         ],
     }
 
-    basic_policy_arn = (
-        "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
-    )
+    basic_policy_arn = "arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole"
     role = create_role(
         role_name,
         trust_policy,

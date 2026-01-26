@@ -1,13 +1,12 @@
-import re
-from rich.console import Console
-import os
-import json
-import sys
-from datetime import datetime, timezone
-import sys
 import functools
-from contextlib import redirect_stdout, redirect_stderr
+import json
+import os
+import re
+import sys
+import traceback
+from datetime import datetime, timezone
 
+from rich.console import Console
 
 console = Console()
 print = console.print
@@ -52,14 +51,6 @@ def file_exists(file_name):
     return os.path.exists(file_path)
 
 
-def create_folder(folder_path):
-    if os.path.exists(folder_path):
-        print("The folder specified already exists")
-        sys.exit()
-    else:
-        os.makedirs(folder_path)
-
-
 def create_file(file_name, content):
     try:
         # Get the current working directory
@@ -80,13 +71,6 @@ def create_file(file_name, content):
         return False
 
 
-def log_output(func):
-    LOG_FILE = "red.log"
-
-    @functools.wraps(func)
-    def wrapper(*args, **kwargs):
-        with open(LOG_FILE, "a") as f:
-            with redirect_stdout(f), redirect_stderr(f):
-                return func(*args, **kwargs)
-
-    return wrapper
+def catch_error(status):
+    print("\n\n{}:\n{}".format(status, traceback.format_exc()))
+    sys.exit()

@@ -1,10 +1,12 @@
-import sh
-import sys
-from red.utility import print, log_output
 import os
+import sys
+import traceback
+
+import sh
+
+from red.utility import catch_error, print
 
 
-@log_output
 def login_to_ecr(account_ecr):
     try:
         # Get ECR login password
@@ -16,14 +18,22 @@ def login_to_ecr(account_ecr):
         print("Docker login successful")
 
     except:
-        print("An error occurred while executing the command")
-        sys.exit()
+        catch_error("An error ocurred during Docker login")
 
 
-@log_output
-def build_image(uri, config):
+def build_image(uri, config, quiet=False):
     try:
-        if config.get("Type").lower() == "image":
+        if quiet:
+            sh.docker.build(
+                "-t",
+                f"{uri}:latest",
+                "-f",
+                config.get("DockerfilePath", "Dockerfile"),
+                ".",
+                _out=None,
+                _err=None,
+            )
+        else:
             sh.docker.build(
                 "-t",
                 f"{uri}:latest",
@@ -33,27 +43,22 @@ def build_image(uri, config):
                 _out=sys.stdout,
                 _err=sys.stderr,
             )
-        else:
-            sh.docker.build(
-                "-t", f"{uri}:latest", ".", _out=sys.stdout, _err=sys.stderr
-            )
-        print("Successfully built container locally")
+        print("Created Docker image")
     except:
-        print("An error occurred while trying to build image")
-        sys.exit()
+        catch_error("An error ocurred while building image")
 
 
-@log_output
-def push_image(uri):
+def push_image(uri, quiet=False):
     try:
-        sh.docker.push(f"{uri}:latest", _out=sys.stdout, _err=sys.stderr)
-        print(f"Successfully pushed docker image to ECR ({uri})!\n")
+        if quiet:
+            sh.docker.push(f"{uri}:latest", _out=None, _err=None)
+        else:
+            sh.docker.push(f"{uri}:latest", _out=sys.stdout, _err=sys.stderr)
+        print(f"Pushed docker image to ECR ({uri})!\\n")
     except:
-        print("An error occurred while trying to push docker image to ECR")
-        sys.exit()
+        catch_error("An error ocurred pushing image to ECR")
 
 
-@log_output
 def pull_image(uri):
     try:
         sh.docker.pull(f"{uri}", _out=sys.stdout, _err=sys.stderr)
@@ -63,12 +68,10 @@ def pull_image(uri):
         sys.exit()
 
 
-def push_to_ecr(uri, account_ecr, skip_push, config):
+def push_to_ecr(uri, account_ecr, config, quiet=False):
     login_to_ecr(account_ecr)
-    build_image(uri, config)
-    if skip_push:
-        return
-    push_image(uri)
+    build_image(uri, config, quiet=quiet)
+    push_image(uri, quiet=quiet)
 
 
 def pull_from_ecr(uri, account_ecr):
@@ -76,7 +79,6 @@ def pull_from_ecr(uri, account_ecr):
     pull_image(uri)
 
 
-@log_output
 def build_serverless_package(config):
     runtime = config.get("Runtime")
     platform = (

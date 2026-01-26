@@ -3,10 +3,12 @@ pyproject.toml
 docs/README.md
 src/red/batch.py
 src/red/compute.py
+src/red/constants.py
 src/red/content.py
 src/red/docker.py
 src/red/ecr.py
 src/red/iam.py
+src/red/infra.py
 src/red/main.py
 src/red/schedule.py
 src/red/utility.py
