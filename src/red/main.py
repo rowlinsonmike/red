@@ -51,8 +51,8 @@ def run_init():
     def validate_storage(entry):
         try:
             entry = int(entry)
-            if entry < 20:
-                return "Minimum value is 20"
+            if entry < 21:
+                return "Minimum value is 21"
             if entry > 200:
                 return "Maximum value is 200"
         except:

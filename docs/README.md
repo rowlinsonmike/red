@@ -17,6 +17,10 @@
 </div>
 
 
+> 🎉 RED 2.0 is out! 
+> This update refocuses the CLI solely on AWS Batch. This descision allows focused development and quality improvements on the Batch ecosystem.
+
+
 
 
 ## What RED Does
@@ -26,13 +30,13 @@ RED streamlines the process of:
 - **Deploying** Docker containers to AWS ECR and Batch environments
 - **Running** batch jobs with optional payloads
 - **Scheduling** recurring jobs with cron expressions
-- **Managing** scheduled jobs (view, delete, update)
+- **Managing** scheduled jobs (view, delete)
 - **Viewing** job logs
 
 ## Installation
 
 ```bash
-pip install red
+pip install pip install https://github.com/rowlinsonmike/red/raw/refs/heads/main/dist/red-2.0.0.tar.gz
 ```
 
 ## Requirements
@@ -49,7 +53,7 @@ pip install red
 - **Containerized Workloads**: Deploy any containerized application to AWS
 - **Serverless Batch**: Leverage AWS Batch for cost-effective, scalable job execution
 
-# Roadmap
+## Roadmap
 
 - enter session for actively running Job
   - install ssm cli (mac focused)
@@ -212,72 +216,60 @@ RED stores configuration in a `.red` file created during `red init`. This includ
 
 
 
-# Customization
+# .red file
 
 The following configurations are supported in the `.red` json file.
 
-> \*REQUIRED means property is only required for one of the compute types
-
 <div>
 <pre>
-{
-  "Name": <a href="##name">...</a> (REQUIRED),
-  "Timeout": <a href="##timeout">300</a> (REQUIRED),
-  "MemorySize": <a href="##memory-size">128</a> (REQUIRED),
-  "Cpu": <a href="##cpu">1</a> (*REQUIRED),
-  "IamPolicy": <a href="##iam-policy">{...}</a> (OPTIONAL),
-  "Env": <a href="##environment-variables">{...}</a> (OPTIONAL),
-  "Vpc": <a href="##vpc">{...}</a> (*OPTIONAL),
-  "Arch": <a href="##architectures">x86_64</a> (OPTIONAL),
-}
+    {
+      "Name": <a href="##name">...</a>,
+      "VPC": <a href="##vpc">{...}</a>,
+      "Arch": <a href="##architectures">x86_64</a>,
+      "Cpu": <a href="##cpu">...</a>,
+      "MemorySize": <a href="##memory-size">...</a>,
+      "StorageSize": <a href="##storage-size">...</a>,
+      "Timeout": <a href="##timeout">...</a>,
+      "assignPublicIp": "<a href="##public-ip">...</a>,
+      "IamPolicy": <a href="##iam-policy">{...}</a>
+      "Envs": <a href="##environment-variables">{...}</a>
+    }
+
 </pre>
 </div>
 
 ## Name
 
-> The name shouldn't contain special characters or spaces
-
-The name used to create all the required resources.
+The name used to create all required resources. The name cannot contain special characters or spaces
 
 
 ## Timeout
 
-The maximum time in seconds that the container can run before it is stopped.
+The maximum time in minutes that the container can run before it is stopped.
 
-> Default: 300
+> Default: 1
 >
-> Maximum: 900
+> Maximum: 10000
+
+## Storage Size
+
+The alloted ephermal storage for each job in GB
+
+> Minimum: 21
+>
+> Maximum: 200
 
 ## CPU
 
-Configue vCPU allotment
-
-Available Options - Reference
+Configue vCPU allotment. See [AWS docs](https://docs.aws.amazon.com/batch/latest/APIReference/API_ResourceRequirement.html) for valid values.
 
 ## Memory Size
 
-The amount of memory available to the container at runtime. Increasing the memory also increases its CPU allocation. The default value is `128 MB`. The value can be any multiple of `1 MB`.
-
-> Minimum: 128
->
-> Maximum: 10240
+Configue memory allotment. See [AWS docs](https://docs.aws.amazon.com/batch/latest/APIReference/API_ResourceRequirement.html) for valid values.
 
 ## Iam Policy
 
-This provides your executions with custom permissions via an IAM policy.
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": ["s3:GetObject", "s3:PutObject", "s3:ListBucket"],
-      "Resource": ["*"]
-    }
-  ]
-}
-```
+This provides your jobs with custom permissions via an IAM policy.
 
 ## Environment Variables
 
@@ -291,31 +283,12 @@ You can specify environment variables as key value pairs.
 
 ## VPC
 
-> You must run `kill` command and redeploy if this configuration is updated. Make sure the subnets being deployed into have internet access (nat gateway or igw). If you are using the batch environment you **MUST** specify VPC settings.
+> You must terminate and recreate your RED deployment if this changes. Make sure the subnets being deployed into have internet access (nat gateway or igw).
 
 ```json
 {
   "SubnetIds": ["subnet-123123"],
   "SecurityGroupIds": ["sg-123123"]
-}
-```
-
-Make sure to provide an `IamPolicy` in the configuration with permissions similar to:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": [
-        "ec2:CreateNetworkInterface",
-        "ec2:DescribeNetworkInterfaces",
-        "ec2:DeleteNetworkInterface"
-      ],
-      "Resource": "*"
-    }
-  ]
 }
 ```
 
@@ -329,9 +302,7 @@ If you're building on a Mac with Apple Silicon, ensure you specify `arm64`. The 
 
 ## Public Ip
 
-Assign a public IP to container
-
-Available Options
+Assign a public IP to container. Available options are:
 
 ```json
 ["ENABLED", "DISABLED"]
