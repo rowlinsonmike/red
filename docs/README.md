@@ -36,7 +36,7 @@ RED streamlines the process of:
 ## Installation
 
 ```bash
-pip install pip install https://github.com/rowlinsonmike/red/raw/refs/heads/main/dist/red-2.0.0.tar.gz
+pip install https://github.com/rowlinsonmike/red/raw/refs/heads/main/dist/red-2.0.0.tar.gz
 ```
 
 ## Requirements
