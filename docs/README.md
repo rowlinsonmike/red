@@ -1,6 +1,6 @@
 <h1 style="margin:0" align="center">
   <br>
-  <img src="image.jpg" alt="logo" width="400" style="border-radius: 50%; object-fit: cover; width: 400px; height: 400px;">
+  <img src="image.png" alt="logo" width="400" style="border-radius: 50%; object-fit: cover; width: 400px; height: 400px;">
 
   <br>
   RED
