@@ -208,6 +208,7 @@ def create_batch_environment(
             retryStrategy={"attempts": 1},
             propagateTags=True,
             containerProperties={
+                "ephemeralStorage": {"sizeInGiB": config.get("StorageSize")},
                 "enableExecuteCommand": True,
                 "image": repo_uri,
                 "jobRoleArn": role,

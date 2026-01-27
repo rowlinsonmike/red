@@ -1,4 +1,5 @@
 import sys
+import time
 
 import boto3
 import questionary
@@ -48,8 +49,29 @@ def get_log(name, log_stream_name):
             return print(panel)
         log_stream_name = stream_response["logStreams"][0]["logStreamName"]
 
-    response = logs_client.get_log_events(
-        logGroupName=log_group_name, logStreamName=log_stream_name, startFromHead=True
-    )
+    # Wait for log stream to be created if it doesn't exist yet
+    max_retries = 30
+    retry_count = 0
+    while retry_count < max_retries:
+        try:
+            response = logs_client.get_log_events(
+                logGroupName=log_group_name,
+                logStreamName=log_stream_name,
+                startFromHead=True,
+            )
+            break
+        except logs_client.exceptions.ResourceNotFoundException:
+            retry_count += 1
+            if retry_count >= max_retries:
+                panel = Panel(
+                    Markdown("log stream not found"),
+                    title="🦊 RED project logs",
+                    border_style="#ff4444",
+                    box=box.ROUNDED,
+                )
+                return print(panel)
+            time.sleep(1)
+
+    # Output complete log
     for event in response["events"]:
         print(event["timestamp"], event["message"])

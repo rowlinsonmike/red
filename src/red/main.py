@@ -47,6 +47,23 @@ def run_init():
     env_content["Cpu"] = cpu
     env_content["MemorySize"] = memory
 
+    # storage
+    def validate_storage(entry):
+        try:
+            entry = int(entry)
+            if entry < 20:
+                return "Minimum value is 20"
+            if entry > 200:
+                return "Maximum value is 200"
+        except:
+            return "Not a valid number"
+        return True
+
+    storage = questionary.text(
+        "Job storage GB (20GB min , 200GB max)?", validate=validate_storage
+    ).ask()
+    env_content["StorageSize"] = int(storage)
+
     # timeout
     def validate_timeout(entry):
         try:
@@ -130,6 +147,9 @@ def run_deploy():
 def run_execute(
     payload: str = typer.Option("{}", "--payload", "-p", help="optional payload"),
     cron: bool = typer.Option(False, "--cron", "-c", help="optional schedule cron job"),
+    detached: bool = typer.Option(
+        False, "--detached", "-d", help="run job without tailing logs"
+    ),
 ):
     config = load_config()
     name = config.get("Name")
@@ -152,9 +172,38 @@ def run_execute(
         envs = batch.get_job_definition_environment_variables(name)
         envs = [{"name": x.get("Name"), "value": x.get("Value")} for x in envs]
         envs.extend([{"name": k, "value": v} for k, v in payload.items()])
-        batch.submit_batch_job(f"{name}_execution", name, name, environment=envs)
-        print("RED project batch job submitted")
-        return
+        job_response = batch.submit_batch_job(
+            f"{name}_execution", name, name, environment=envs
+        )
+        job_id = job_response["jobId"]
+        print(f"RED project batch job submitted: {job_id}")
+        log_stream_name = None
+        if detached:
+            return
+
+        # Wait for job to finish with spinner
+        with Progress(
+            SpinnerColumn(),
+            TextColumn("[progress.description]{task.description}"),
+            transient=True,
+        ) as progress:
+            task = progress.add_task(
+                "[#ff4444]Waiting for job to complete...", total=None
+            )
+            batch_client = boto3.client("batch")
+            while True:
+                response = batch_client.describe_jobs(jobs=[job_id])
+                job_status = response["jobs"][0]["status"]
+                if job_status in ["SUCCEEDED", "FAILED"]:
+                    log_stream_name = (
+                        response["jobs"][0].get("container", {}).get("logStreamName")
+                    )
+                    progress.update(task, description=f"[#ff4444]Job {job_status}")
+                    break
+                time.sleep(5)
+
+        # Output the complete log
+        logs.get_log(name, log_stream_name)
 
 
 # @app.command("pull")

@@ -54,8 +54,6 @@ pip install red
 - enter session for actively running Job
   - install ssm cli (mac focused)
   - execute commands to running Job
-- wait for job to complete and spit out log automatically (tail)
-
 
 ## Workflow Example
 
@@ -125,6 +123,12 @@ Execute a batch job immediately or schedule it for recurring execution.
 **Examples:**
 
 Immediate execution:
+```bash
+red run
+red run --payload '{"key": "value"}' -d
+```
+
+Immediate execution and output log once done:
 ```bash
 red run
 red run --payload '{"key": "value"}'
