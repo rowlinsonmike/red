@@ -233,6 +233,8 @@ The following configurations are supported in the `.red` json file.
       "assignPublicIp": "<a href="##public-ip">...</a>,
       "IamPolicy": <a href="##iam-policy">{...}</a>
       "Envs": <a href="##environment-variables">{...}</a>
+      "BuildContext": <a href="##build-context">{...}</a>
+      "DockerfilePath": <a href="##dockerfile-path">{...}</a>
     }
 
 </pre>
@@ -307,3 +309,11 @@ Assign a public IP to container. Available options are:
 ```json
 ["ENABLED", "DISABLED"]
 ```
+
+## Build Context
+
+Build context to use when building the image with Docker CLI. Defaults to `.`.
+
+## Dockerfile Path
+
+The path to the Dockerfile to use. Defaults to "Dockerfile"

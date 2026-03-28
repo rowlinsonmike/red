@@ -29,7 +29,7 @@ def build_image(uri, config, quiet=False):
                 f"{uri}:latest",
                 "-f",
                 config.get("DockerfilePath", "Dockerfile"),
-                ".",
+                config.get("BuildContext", "."),
                 _out=None,
                 _err=None,
             )

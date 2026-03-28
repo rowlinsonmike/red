@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: red
-Version: 2.0.0
+Version: 2.0.1
 Summary: RED is a CLI tool that simplifies deploying containerized applications to AWS
 Requires-Python: >=3.12
 Description-Content-Type: text/markdown
@@ -29,6 +29,10 @@ Requires-Dist: questionary>=2.1.1
 </div>
 
 
+> 🎉 RED 2.0 is out! 
+> This update refocuses the CLI solely on AWS Batch. This descision allows focused development and quality improvements on the Batch ecosystem.
+
+
 
 
 ## What RED Does
@@ -44,7 +48,7 @@ RED streamlines the process of:
 ## Installation
 
 ```bash
-pip install red
+pip install https://github.com/rowlinsonmike/red/raw/refs/heads/main/dist/red-2.0.0.tar.gz
 ```
 
 ## Requirements
@@ -241,6 +245,7 @@ The following configurations are supported in the `.red` json file.
       "assignPublicIp": "<a href="##public-ip">...</a>,
       "IamPolicy": <a href="##iam-policy">{...}</a>
       "Envs": <a href="##environment-variables">{...}</a>
+      "BuildContext": <a href="##build-context">{...}</a>
     }
 
 </pre>
@@ -315,3 +320,7 @@ Assign a public IP to container. Available options are:
 ```json
 ["ENABLED", "DISABLED"]
 ```
+
+## Build Context
+
+Build context to use when building the image with Docker CLI. Defaults to `.`.

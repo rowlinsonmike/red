@@ -46,6 +46,8 @@ def run_init():
     ).ask()
     env_content["Cpu"] = cpu
     env_content["MemorySize"] = memory
+    env_content["DockerfilePath"] = "Dockerfile"
+    env_content["BuildContext"] = "."
 
     # storage
     def validate_storage(entry):

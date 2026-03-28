@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "red"
-version = "2.0.0"
+version = "2.0.1"
 description = "RED is a CLI tool that simplifies deploying containerized applications to AWS"
 readme = "docs/README.md"
 requires-python = ">=3.12"
