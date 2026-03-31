@@ -235,6 +235,7 @@ The following configurations are supported in the `.red` json file.
       "Envs": <a href="##environment-variables">{...}</a>
       "BuildContext": <a href="##build-context">{...}</a>
       "DockerfilePath": <a href="##dockerfile-path">{...}</a>
+      "ContainerProperties": <a href="##containerProperties">{...}</a>
     }
 
 </pre>
@@ -283,6 +284,14 @@ You can specify environment variables as key value pairs.
 }
 ```
 
+If you want to specify SSM parameters, make sure the role allows it and define them with the `ssmParam::` prefix.
+
+```json
+{
+  "myvar": "ssmParam::app/param1"
+}
+```
+
 ## VPC
 
 > You must terminate and recreate your RED deployment if this changes. Make sure the subnets being deployed into have internet access (nat gateway or igw).
@@ -317,3 +326,7 @@ Build context to use when building the image with Docker CLI. Defaults to `.`.
 ## Dockerfile Path
 
 The path to the Dockerfile to use. Defaults to "Dockerfile"
+
+## containerProperties
+
+Provide containerProperties that override or add to the defaults provided to the job definition. Configurations can be found [here](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#container_definition_network)

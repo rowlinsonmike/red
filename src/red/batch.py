@@ -73,6 +73,20 @@ def get_job_definition_environment_variables(job_definition_name=None):
     return results
 
 
+def _deep_merge(base, override):
+    """
+    Deep merge override dict into base dict.
+    Override values take precedence at any nesting level.
+    """
+    result = base.copy()
+    for key, value in override.items():
+        if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            result[key] = _deep_merge(result[key], value)
+        else:
+            result[key] = value
+    return result
+
+
 def create_batch_environment(
     function_name,
     repo_uri,
@@ -200,6 +214,53 @@ def create_batch_environment(
                     "operatingSystemFamily": "LINUX",
                 },
             }
+        sts_client = boto3.client("sts")
+        account_id = sts_client.get_caller_identity()["Account"]
+        # Build default container properties
+        default_container_properties = {
+            "ephemeralStorage": {"sizeInGiB": config.get("StorageSize")},
+            "enableExecuteCommand": True,
+            "image": repo_uri,
+            "jobRoleArn": role,
+            "executionRoleArn": role,
+            "fargatePlatformConfiguration": {"platformVersion": "LATEST"},
+            "networkConfiguration": {
+                "assignPublicIp": config.get("assignPublicIp", "DISABLED")
+            },
+            "resourceRequirements": [
+                {"type": "VCPU", "value": str(config.get("Cpu"))},
+                {"type": "MEMORY", "value": str(config.get("MemorySize"))},
+            ],
+            "logConfiguration": {
+                "logDriver": "awslogs",
+                "options": {
+                    "awslogs-group": log_group_name,
+                    "awslogs-region": batch_client.meta.region_name,
+                    "awslogs-stream-prefix": job_def_name,
+                },
+            },
+            "environment": [
+                {"name": k, "value": str(v)}
+                for k, v in config.get("Env", {}).items()
+                if not (isinstance(v, str) and v.startswith("ssmParam::"))
+            ],
+            "secrets": [
+                {
+                    "name": k,
+                    "valueFrom": f"arn:aws:ssm:{batch_client.meta.region_name}:{account_id}:parameter/{v[10:].lstrip('/')}",
+                }
+                for k, v in config.get("Env", {}).items()
+                if isinstance(v, str) and v.startswith("ssmParam::")
+            ],
+            **runtime,
+        }
+
+        # Merge with any containerProperties from config
+        config_container_props = config.get("ContainerProperties", {})
+        final_container_properties = _deep_merge(
+            default_container_properties, config_container_props
+        )
+
         job_arn = batch_client.register_job_definition(
             jobDefinitionName=job_def_name,
             type="container",
@@ -207,33 +268,7 @@ def create_batch_environment(
             timeout={"attemptDurationSeconds": config.get("Timeout", 10000)},
             retryStrategy={"attempts": 1},
             propagateTags=True,
-            containerProperties={
-                "ephemeralStorage": {"sizeInGiB": config.get("StorageSize")},
-                "enableExecuteCommand": True,
-                "image": repo_uri,
-                "jobRoleArn": role,
-                "executionRoleArn": role,
-                "fargatePlatformConfiguration": {"platformVersion": "LATEST"},
-                "networkConfiguration": {
-                    "assignPublicIp": config.get("assignPublicIp", "DISABLED")
-                },
-                "resourceRequirements": [
-                    {"type": "VCPU", "value": str(config.get("Cpu"))},
-                    {"type": "MEMORY", "value": str(config.get("MemorySize"))},
-                ],
-                "logConfiguration": {
-                    "logDriver": "awslogs",
-                    "options": {
-                        "awslogs-group": log_group_name,
-                        "awslogs-region": batch_client.meta.region_name,
-                        "awslogs-stream-prefix": job_def_name,
-                    },
-                },
-                "environment": [
-                    {"name": k, "value": v} for k, v in config.get("Env", {}).items()
-                ],
-                **runtime,
-            },
+            containerProperties=final_container_properties,
         )["jobDefinitionArn"]
 
         # Wait for job definition to be registered

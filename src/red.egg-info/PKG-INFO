@@ -1,6 +1,6 @@
 Metadata-Version: 2.4
 Name: red
-Version: 2.0.1
+Version: 2.0.3
 Summary: RED is a CLI tool that simplifies deploying containerized applications to AWS
 Requires-Python: >=3.12
 Description-Content-Type: text/markdown
@@ -246,6 +246,8 @@ The following configurations are supported in the `.red` json file.
       "IamPolicy": <a href="##iam-policy">{...}</a>
       "Envs": <a href="##environment-variables">{...}</a>
       "BuildContext": <a href="##build-context">{...}</a>
+      "DockerfilePath": <a href="##dockerfile-path">{...}</a>
+      "ContainerProperties": <a href="##containerProperties">{...}</a>
     }
 
 </pre>
@@ -324,3 +326,11 @@ Assign a public IP to container. Available options are:
 ## Build Context
 
 Build context to use when building the image with Docker CLI. Defaults to `.`.
+
+## Dockerfile Path
+
+The path to the Dockerfile to use. Defaults to "Dockerfile"
+
+## containerProperties
+
+Provide containerProperties that override or add to the defaults provided to the job definition. Configurations can be found [here](https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html#container_definition_network)
